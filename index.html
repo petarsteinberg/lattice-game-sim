@@ -1,0 +1,1007 @@
+<title>Lattice Game Sim</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: an instrument panel. Parameters in a left rail, the live lattice in the centre,
+   time-series read-outs to the right; stacks to one column on a phone. */
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --ink: #15181c;
+  --muted: #5a616b;
+  --faint: #8a919b;
+  --line: #e0e3e8;
+  --grid: #eceef1;
+  --focus: #2a78d6;
+  --ok: #1a7f4b;
+  --bad: #b8322f;
+  /* strategy classes (validated categorical order) */
+  --c-allc: #2a78d6;
+  --c-alld: #e34948;
+  --c-tft: #1baf7a;
+  --c-wsls: #eda100;
+  --c-other: #c4a684;
+  --c-random: #a3aab4;
+  /* diverging: always D -> half -> always C */
+  --div-neg: #e34948;
+  --div-mid: #e6e7e9;
+  --div-pos: #2a78d6;
+  /* sequential ramps */
+  --seq-lo: #eef1f6;
+  --seq-hi: #1f4f9a;
+  --pay-lo: #fbefe5;
+  --pay-hi: #a8501b;
+  --series-pay: #6250d6;
+  --learner: #000000;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111317; --surface: #191c21; --ink: #eceef1; --muted: #a3a9b2; --faint: #7c838d;
+    --line: #2b3037; --grid: #23272d; --focus: #5b9bea; --ok: #4cc28a; --bad: #ef7b78;
+    --c-allc: #3987e5; --c-alld: #e66767; --c-tft: #199e70; --c-wsls: #c98500; --c-other: #9b7b58; --c-random: #6c737d;
+    --div-neg: #e66767; --div-mid: #2c3036; --div-pos: #3987e5;
+    --seq-lo: #1d232c; --seq-hi: #8db8f2; --pay-lo: #2a2019; --pay-hi: #f0a46e; --series-pay: #9085e9; --learner: #ffffff;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111317; --surface: #191c21; --ink: #eceef1; --muted: #a3a9b2; --faint: #7c838d;
+  --line: #2b3037; --grid: #23272d; --focus: #5b9bea; --ok: #4cc28a; --bad: #ef7b78;
+  --c-allc: #3987e5; --c-alld: #e66767; --c-tft: #199e70; --c-wsls: #c98500; --c-other: #9b7b58; --c-random: #6c737d;
+  --div-neg: #e66767; --div-mid: #2c3036; --div-pos: #3987e5;
+  --seq-lo: #1d232c; --seq-hi: #8db8f2; --pay-lo: #2a2019; --pay-hi: #f0a46e; --series-pay: #9085e9; --learner: #ffffff;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 32px;
+}
+.app { max-width: 1800px; margin: 0 auto; display: grid; gap: 16px;
+  grid-template-columns: 290px minmax(0, 1fr); grid-template-areas: "top top" "rail stage"; }
+header.top { grid-area: top; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; }
+header.top h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+header.top p { margin: 2px 0 0; color: var(--muted); max-width: 70ch; }
+.status { font-family: var(--font-data); font-size: 12.5px; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.status b { color: var(--ink); font-weight: 500; }
+
+aside.rail { grid-area: rail; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.group { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.group h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0; }
+.row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
+.row label { color: var(--ink); }
+.stack { display: flex; flex-direction: column; gap: 6px; }
+.stack select { width: 100%; }
+.hint { font-size: 12px; color: var(--muted); margin: -4px 0 0; }
+select, input[type="number"] {
+  font: 13px var(--font-data); color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 8px; min-width: 0;
+}
+input[type="number"] { width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
+select:focus-visible, input:focus-visible, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+input[type="range"] { width: 100%; accent-color: var(--ink); }
+.payoffs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.payoffs label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.payoffs label span b { color: var(--ink); font-family: var(--font-data); font-weight: 500; }
+.payoffs input { width: 100%; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+button {
+  font: 500 13px var(--font-ui); color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 10px; cursor: pointer;
+}
+button:hover { border-color: var(--faint); }
+button.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); min-width: 74px; }
+button.small { font-size: 12px; padding: 4px 8px; }
+.chips { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.chip { display: flex; gap: 6px; align-items: baseline; }
+.chip i { font-style: normal; font-weight: 600; width: 1em; display: inline-block; text-align: center; }
+.chip.ok i { color: var(--ok); } .chip.bad i { color: var(--bad); }
+.chip span { color: var(--muted); }
+.check { display: flex; align-items: center; gap: 8px; }
+.controls-run { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.controls-run.two { grid-template-columns: 1fr 1fr; }
+.export textarea { width: 100%; resize: vertical; font: 11px/1.4 var(--font-data); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+#run-status:empty { display: none; }
+details.how { font-size: 12.5px; color: var(--muted); }
+details.how summary { cursor: pointer; color: var(--ink); font-weight: 500; }
+details.how ol { padding-left: 18px; margin: 8px 0 0; display: flex; flex-direction: column; gap: 4px; }
+details.explain { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+details.explain summary { cursor: pointer; color: var(--ink); font-weight: 500; }
+details.explain p { margin: 8px 0 0; max-width: 68ch; }
+details.explain ul, details.explain ol { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; }
+.group details.explain { margin-top: 0; }
+.learner-dot { display: inline-block; width: 11px; height: 11px; border-radius: 2px; background: var(--learner); vertical-align: -1px; margin-left: 4px; }
+.mixbar { display: flex; height: 14px; border-radius: 3px; overflow: hidden; background: var(--grid); margin-top: 4px; }
+.mixbar span { height: 100%; }
+.mixbar span + span { box-shadow: inset 2px 0 0 var(--surface); }
+.readout { font: 12px/1.55 var(--font-data); color: var(--muted); font-variant-numeric: tabular-nums; display: flex; flex-direction: column; gap: 2px; }
+.readout b { color: var(--ink); font-weight: 500; }
+.readout .vec { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 4px; }
+.readout .vec span { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; }
+.readout .vec i { display: block; width: 100%; height: 26px; background: var(--grid); border-radius: 2px; position: relative; overflow: hidden; }
+.readout .vec i::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: var(--h); background: var(--learner); }
+
+main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: minmax(0, 1.6fr) minmax(340px, 1fr); align-items: start; min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.panel-head h3 { font-size: 13px; font-weight: 600; margin: 0; }
+.lattice-wrap { position: relative; width: 100%; aspect-ratio: 1 / 1; max-width: min(100%, calc(100vh - 140px)); margin-inline: auto; }
+#lattice { width: 100%; height: 100%; display: block; image-rendering: pixelated; border-radius: 4px; cursor: crosshair; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--muted); align-items: center; }
+.legend .sw { width: 11px; height: 11px; border-radius: 2px; display: inline-block; vertical-align: -1px; margin-right: 5px; }
+.legend .ramp { width: 140px; height: 10px; border-radius: 2px; display: inline-block; }
+.charts { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.chart { width: 100%; height: 150px; display: block; }
+.chart.tall { height: 300px; }
+.chart-sub { font-size: 12px; color: var(--muted); margin: -6px 0 6px; }
+.tip {
+  position: fixed; z-index: 20; pointer-events: none; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: 12px/1.5 var(--font-data);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); max-width: 280px; font-variant-numeric: tabular-nums;
+}
+.tip .t-head { font-family: var(--font-ui); font-weight: 600; margin-bottom: 2px; }
+.tip .sw { width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-right: 5px; }
+
+@media (max-width: 1100px) {
+  main.stage { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "stage" "rail"; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div>
+      <h1>Lattice Game Sim</h1>
+      <p>Every player starts with a random memory-one strategy, plays a repeated game with each of its neighbours, and copies better-scoring neighbours with the Fermi rule.</p>
+    </div>
+    <div class="status" aria-live="polite">
+      <span>generation <b id="st-gen">0</b></span>
+      <span><span id="st-a-label">C moves</span> <b id="st-coop">-</b></span>
+      <span><span id="st-b-label">payoff</span> <b id="st-pay">-</b></span>
+      <span><b id="st-ms">-</b> ms / step</span>
+    </div>
+  </header>
+
+  <aside class="rail">
+    <section class="group" aria-labelledby="g-run">
+      <h2 id="g-run">Run</h2>
+      <div class="controls-run">
+        <button id="btn-run" class="primary" type="button">Run</button>
+        <button id="btn-step" type="button">Step</button>
+        <button id="btn-reset" type="button">Restart</button>
+      </div>
+      <div class="row"><label for="speed">Speed</label><span id="speed-out" class="hint" style="margin:0">24 steps/s</span></div>
+      <input id="speed" type="range" min="1" max="61" step="1" value="24" aria-label="Steps per second">
+      <div class="row"><label for="seed">Random seed</label>
+        <span style="display:flex;gap:6px"><input id="seed" type="number" value="1" min="0" step="1"><button id="btn-seed" class="small" type="button" title="Pick a new seed and restart">New</button></span></div>
+      <div class="controls-run two">
+        <button id="btn-load" class="small" type="button">Load run file</button>
+        <button id="btn-export" class="small" type="button">Export run</button>
+      </div>
+      <input id="load-file" type="file" accept=".json,application/json" hidden>
+      <div class="readout" id="run-status" aria-live="polite"></div>
+      <div id="export-panel" class="export stack" hidden>
+        <textarea id="export-text" readonly rows="6" aria-label="Run file (JSON)"></textarea>
+        <div class="controls-run two">
+          <button id="btn-copy" class="small" type="button">Copy</button>
+          <button id="btn-download" class="small" type="button">Download</button>
+        </div>
+        <p class="hint" style="margin:0">Same format as the command-line runner. Download asks you to confirm the save; if it is not available, copy the text and save it as a .json file.</p>
+      </div>
+    </section>
+
+    <section class="group" aria-labelledby="g-lat">
+      <h2 id="g-lat">Lattice</h2>
+      <div class="row"><label for="L">Size</label>
+        <select id="L"><option value="20">20 x 20</option><option value="30">30 x 30</option><option value="50">50 x 50</option><option value="80">80 x 80</option><option value="100" selected>100 x 100</option><option value="150">150 x 150</option><option value="200">200 x 200</option><option value="300">300 x 300</option></select></div>
+      <div class="stack"><label for="radius">Neighbour radius</label>
+        <select id="radius">
+          <option value="1">1 (4 neighbours)</option>
+          <option value="1.4142135623730951" selected>&radic;2 (8 neighbours)</option>
+          <option value="2">2 (12 neighbours)</option>
+          <option value="2.23606797749979">&radic;5 (20 neighbours)</option>
+          <option value="2.8284271247461903">&radic;8 (24 neighbours)</option>
+          <option value="3">3 (28 neighbours)</option>
+        </select></div>
+      <p class="hint">Neighbours are the sites within this distance, wrapping around the edges. Changing size or radius restarts the run.</p>
+    </section>
+
+    <section class="group" aria-labelledby="g-game">
+      <h2 id="g-game">Game dynamics</h2>
+      <div class="stack"><label for="game">Type</label>
+        <select id="game"><option value="pd" selected>Prisoner's Dilemma</option><option value="mp">Matching pennies</option></select></div>
+      <p class="hint">Changing the type restarts the run.</p>
+      <div data-game="pd" class="stack">
+        <div class="payoffs">
+          <label for="T"><span><b>T</b> tempt</span><input id="T" type="number" step="0.1" value="5"></label>
+          <label for="R"><span><b>R</b> reward</span><input id="R" type="number" step="0.1" value="3"></label>
+          <label for="P"><span><b>P</b> punish</span><input id="P" type="number" step="0.1" value="1"></label>
+          <label for="S"><span><b>S</b> sucker</span><input id="S" type="number" step="0.1" value="0"></label>
+        </div>
+        <div class="presets">
+          <button class="small" type="button" data-preset="5,3,1,0">Standard (5310)</button>
+          <button class="small" type="button" data-preset="1.5,1,0,0">Weak PD b = 1.5</button>
+          <button class="small" type="button" data-preset="1.1,1,0,0">Weak PD b = 1.1</button>
+        </div>
+        <div class="chips" id="chips"></div>
+      </div>
+      <div data-game="mp" class="stack" hidden>
+        <div class="row"><label for="stake">Stake</label><input id="stake" type="number" min="0.1" step="0.1" value="1"></div>
+        <p class="hint" style="margin:0">Each round both players show Heads or Tails. The matcher wins the stake if the coins match, the mismatcher wins it if they differ. Zero-sum: one player's gain is the other's loss.</p>
+        <p class="hint" style="margin:0">Every pair of neighbours plays twice, once with each as the matcher, so everyone holds one strategy and can copy anyone.</p>
+      </div>
+      <div class="row"><label for="rounds">Rounds per pairing</label><input id="rounds" type="number" min="1" max="200" step="1" value="3"></div>
+      <div class="check"><input id="selfint" type="checkbox"><label for="selfint">Play against yourself too</label></div>
+      <p class="hint" data-game="mp" hidden>Not used in matching pennies: playing yourself in both roles always nets 0.</p>
+      <div class="row"><label for="mode">Game outcome</label>
+        <select id="mode"><option value="expected" selected>Expected (exact)</option><option value="sampled">Sampled moves</option></select></div>
+      <p class="hint">Expected averages over every way the rounds could go. Sampled plays the moves out with random draws.</p>
+    </section>
+
+    <section class="group" aria-labelledby="g-dyn">
+      <h2 id="g-dyn">Imitator settings</h2>
+      <div class="row"><label for="K">Fermi temperature K</label><input id="K" type="number" min="0" step="0.01" value="0.05"></div>
+      <input id="K-range" type="range" min="0" max="3" step="0.01" value="0.05" aria-label="Fermi temperature K">
+      <p class="hint">Copy probability is 1 / (1 + e<sup>&minus;&Delta;/K</sup>), where &Delta; is the neighbour's total payoff minus your own. K = 0 means copy only if strictly better.</p>
+    </section>
+
+    <section class="group" aria-labelledby="g-learn">
+      <h2 id="g-learn">Learner settings</h2>
+      <div class="row"><label for="nlearners">Number of learners <span class="learner-dot" aria-hidden="true"></span></label><input id="nlearners" type="number" min="0" max="5000" step="1" value="0"></div>
+      <p class="hint">Learners sit at random sites chosen from the seed and are drawn in black. Changing the number during a run places a new set.</p>
+      <div class="row"><label for="W">Window W (generations)</label><input id="W" type="number" min="1" max="200" step="1" value="3"></div>
+      <div class="row"><label for="sigma">Trial step size &sigma;</label><input id="sigma" type="number" min="0.01" max="0.5" step="0.01" value="0.1"></div>
+      <div class="check"><input id="copyable" type="checkbox" checked><label for="copyable">Imitators can copy learners</label></div>
+      <div class="readout" id="learner-readout" aria-live="polite"></div>
+      <details class="explain">
+        <summary>How the learners learn</summary>
+        <p>Each learner sees only its own payoff, per partner per round, and never imitates. Each repeats three steps on its own:</p>
+        <ol>
+          <li><b>Measure.</b> Play its kept vector for W generations and average its payoff.</li>
+          <li><b>Try.</b> Add a small random change to each of its five probabilities (normally distributed with standard deviation &sigma;, clipped to 0&ndash;1) and play that for the next W generations.</li>
+          <li><b>Keep or revert.</b> If the trial window earned more than the window before it, the change becomes the kept vector and the next trial starts straight away. Otherwise it goes back to the kept vector and measures it again first, since the lattice has moved on.</li>
+        </ol>
+        <p>A longer window judges each change over a longer stretch, long enough for neighbours to react to it (for example by copying it), at the cost of fewer trials. In sampled mode the payoffs a learner sees are the realised ones.</p>
+      </details>
+    </section>
+
+    <details class="how group">
+      <summary>What happens in one generation</summary>
+      <ol>
+        <li data-game="pd">Each player holds five probabilities of cooperating: p0 in the first round, then pCC, pCD, pDC, pDD after each outcome (own move first).</li>
+        <li data-game="mp" hidden>Each player holds five probabilities of playing Heads: p0 in the first round, then pHW, pHL, pTW, pTL after playing Heads and winning, Heads and losing, Tails and winning, Tails and losing. Stated by win or loss, they mean the same in either role.</li>
+        <li data-game="pd">Every pair of neighbours plays the set number of rounds. Each player's score for the generation is its average payoff per round in each of those games, added up over all its partners.</li>
+        <li data-game="mp" hidden>Every pair of neighbours plays the set number of rounds twice, once with each player as the matcher. A player's score from a pair is its average payoff per round over the two games; its score for the generation adds these up over all its partners.</li>
+        <li>Every player then picks one neighbour at random and compares the two scores. It copies that neighbour's whole vector with the Fermi probability, which grows with how much higher the neighbour scored. All players update at once.</li>
+        <li>Scores have no memory. They come only from the games played in this generation and are thrown away afterwards, so a strategy that did well in earlier generations gets no credit for it. A copied vector starts the next generation with a fresh score.</li>
+        <li>Learners, if there are any, skip the copying step. Each plays its own vector and changes it only by trial and keep (see Learner settings).</li>
+        <li>Generation 0 is a lattice of uniformly random vectors drawn from the seed.</li>
+      </ol>
+    </details>
+  </aside>
+
+  <main class="stage">
+    <section class="panel" aria-labelledby="h-lat">
+      <div class="panel-head">
+        <h3 id="h-lat">The lattice</h3>
+        <label for="colorby" style="display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted)">Colour by
+          <select id="colorby">
+            <option value="class" selected>Nearest named strategy</option>
+            <option value="coop">Cooperation this generation</option>
+            <option value="pay">Payoff</option>
+            <option value="0">p0 (first move)</option>
+            <option value="1">pCC</option>
+            <option value="2">pCD</option>
+            <option value="3">pDC</option>
+            <option value="4">pDD</option>
+          </select></label>
+      </div>
+      <div class="lattice-wrap"><canvas id="lattice" aria-label="Lattice of players; hover a cell to see its strategy"></canvas></div>
+      <div class="legend" id="legend"></div>
+    </section>
+
+    <div class="charts">
+      <section class="panel" aria-labelledby="h-mix">
+        <div class="panel-head"><h3 id="h-mix">Strategy mix</h3></div>
+        <p class="chart-sub">Share of players closest to each named strategy</p>
+        <canvas class="chart" id="ch-mix"></canvas>
+        <div class="legend" id="legend-mix"></div>
+        <details class="explain" data-game="mp" hidden>
+          <summary>What <em>closest to a named strategy</em> means</summary>
+          <p>A strategy here is compared on its four follow-up probabilities (pHW, pHL, pTW, pTL); the opening move only affects round one. The named strategies are:</p>
+          <ul>
+            <li>always Heads (1, 1, 1, 1) and always Tails (0, 0, 0, 0)</li>
+            <li>win-stay lose-shift (1, 0, 0, 1): repeats its move after a win, switches after a loss</li>
+            <li>alternator (0, 0, 1, 1): switches every round, win or lose</li>
+            <li>50/50 random (0.5, 0.5, 0.5, 0.5): the only strategy nobody can exploit</li>
+          </ul>
+          <p>The distance between a player's four numbers and a named strategy's is the straight-line distance, &radic;((pHW&minus;q1)&sup2; + &hellip; + (pTL&minus;q4)&sup2;), at most 2. A player counts as the closest named strategy if that distance is under 0.5, and as mixed otherwise.</p>
+        </details>
+        <details class="explain" data-game="pd">
+          <summary>What <em>closest to a named strategy</em> means</summary>
+          <p>A strategy is five numbers (p0, pCC, pCD, pDC, pDD), so it is a point in a five-dimensional box. Each named strategy is a corner of that box:</p>
+          <ul>
+            <li>ALLC (1, 1, 1, 1, 1): always cooperates</li>
+            <li>ALLD (0, 0, 0, 0, 0): always defects</li>
+            <li>TFT (1, 1, 0, 1, 0): opens with C, then copies the partner's last move</li>
+            <li>grim trigger (1, 1, 0, 0, 0): opens with C, defects forever once anyone defects</li>
+            <li>WSLS (1, 1, 0, 0, 1): repeats its move after a good outcome (CC, DC), switches after a bad one (CD, DD)</li>
+          </ul>
+          <p>The distance between a player's vector p and a named vector q is the usual straight-line distance, &radic;((p0&minus;q0)&sup2; + &hellip; + (pDD&minus;qDD)&sup2;). It is 0 for an exact match and at most &radic;5 &asymp; 2.24.</p>
+          <p>A player is counted as the closest named strategy if that distance is under 0.5, and as mixed otherwise. For example, (0.9, 1, 0.1, 0.2, 0) is 0.24 from grim trigger and 0.81 from TFT, so it counts as grim. TFT and grim trigger share one colour.</p>
+        </details>
+      </section>
+      <section class="panel" aria-labelledby="h-coop">
+        <div class="panel-head"><h3 id="h-coop"><span data-game="pd">Cooperation</span><span data-game="mp" hidden>Payoff spread</span></h3></div>
+        <p class="chart-sub" data-game="pd">Share of all moves that are C</p>
+        <p class="chart-sub" data-game="mp" hidden>Standard deviation of players' payoffs per partner per round; 0 when nobody exploits anybody. The scale follows the data.</p>
+        <canvas class="chart" id="ch-coop"></canvas>
+        <div class="legend" id="legend-coop"></div>
+        <details class="explain" data-game="mp" hidden>
+          <summary>What payoff spread and exploitability show</summary>
+          <p>Matching pennies is zero-sum, so the mean payoff is always exactly 0. What changes is who wins.</p>
+          <p><b>Payoff spread</b> is the standard deviation of players' payoffs. It is 0 when every pairing is even, and grows when some players beat their neighbours at others' expense.</p>
+          <p><b>Exploitability</b> is what the best possible opponent would earn per round against a player using the population's mean vector, in both roles and over the set number of rounds. It is computed exactly, round by round, and is 0 only for 50/50 random play. The learner's payoff, when it is switched on, is a live estimate of how exploitable its actual neighbours are.</p>
+          <p>Without mutation, imitation eventually leaves one vector, which earns 0 against itself, so the end state always looks calm in spread. Exploitability, or the learner, shows whether that survivor could be beaten.</p>
+        </details>
+        <details class="explain" data-game="pd">
+          <summary>What the reference lines show</summary>
+          <p><b>Lattice</b> is what players actually do with their neighbours.</p>
+          <p><b>Well-mixed</b> takes the same players but pairs each with randomly chosen players from anywhere on the lattice, ignoring who sits next to whom. It is estimated each generation from 5,000 random pairs.</p>
+          <p><b>Mean vs mean</b> is a single player using the population's average vector (the mean of each of the five probabilities) playing against itself, computed exactly.</p>
+          <p>The gaps separate two effects. Lattice above well-mixed is <em>clustering</em>: neighbours are more alike than random pairs, so cooperators meet cooperators more often. A gap between well-mixed and mean vs mean is <em>diversity</em>: payoff is not linear in the vector, so the average strategy is a poor stand-in for the actual mix, and it may describe nobody (half TFT and half ALLD averages to 0.5, 0.5, 0, 0.5, 0). Without mutation, imitation eventually leaves one vector, and then all three lines meet.</p>
+          <p>Both reference lines use the expected game outcome, also when the lattice uses sampled moves.</p>
+        </details>
+      </section>
+      <section class="panel" aria-labelledby="h-pay">
+        <div class="panel-head"><h3 id="h-pay"><span data-game="pd">Mean payoff</span><span data-game="mp" hidden>Exploitability</span></h3></div>
+        <p class="chart-sub" data-game="pd">Per partner per round; reference lines as in the cooperation chart</p>
+        <p class="chart-sub" data-game="mp" hidden>Best possible opponent's payoff per round against the population's mean vector; 0 only at 50/50 random</p>
+        <canvas class="chart" id="ch-pay"></canvas>
+        <div class="legend" id="legend-pay"></div>
+      </section>
+      <section class="panel" aria-labelledby="h-vec">
+        <div class="panel-head"><h3 id="h-vec">The strategy vector</h3></div>
+        <p class="chart-sub" data-game="pd">Population mean over time (left) and distribution now (right)</p>
+        <p class="chart-sub" data-game="mp" hidden>Probability of Heads: population mean over time (left) and distribution now (right). The midline 0.5 is the unexploitable value.</p>
+        <canvas class="chart tall" id="ch-vec"></canvas>
+      </section>
+    </div>
+  </main>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script src="model.js"></script>
+<script>
+(() => {
+  "use strict";
+  // ------------------------------------------------------------------ helpers
+  const $ = (id) => document.getElementById(id);
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  function rgb(hex) {
+    const h = hex.replace("#", "");
+    const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  // ------------------------------------------------------------------ the model (model.js)
+  // All of the model lives in model.js, shared with the Node runner (run.js). The page only
+  // reads its state and draws it.
+  const sim = LatticeModel.createSim();
+  const S = sim.S, LR = sim.LR;
+  const { F, MAP_MATCH, MAP_MISMATCH, play, record, stats, partners, nearest, exploitability,
+    pairExpected, pairSampled, learnerInit, learnerApply } = sim;
+
+  // Every generation is logged with the same measure() the runner uses, so the page can export a
+  // run in the runner's format. Parameter edits during a run are recorded with their generation.
+  const LOG_LIMIT = 50000;
+  let runLog = [], runEdits = [], runStart = null;
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  function restart() { sim.restart(); runLog = [sim.measure()]; runEdits = []; runStart = clone(S.params); }
+  function step() { sim.step(); if (runLog.length < LOG_LIMIT) runLog.push(sim.measure()); }
+  function relogLast() { if (runLog.length && runLog[runLog.length - 1].gen === S.gen) runLog[runLog.length - 1] = sim.measure(); }
+  let G, COMP, NAMED, REFS, MIXED;
+  function syncGame() { G = sim.G; COMP = sim.COMP; NAMED = sim.NAMED; REFS = sim.REFS; MIXED = sim.MIXED; }
+  syncGame();
+
+  // ------------------------------------------------------------------ drawing
+  let palette = {};
+  function readPalette() {
+    palette = {
+      cls: NAMED.map((n) => rgb(css(n.color))).concat([rgb(css("--c-other"))]), // mixed is last (index MIXED)
+      neg: rgb(css("--div-neg")), mid: rgb(css("--div-mid")), pos: rgb(css("--div-pos")),
+      seqLo: rgb(css("--seq-lo")), seqHi: rgb(css("--seq-hi")), payLo: rgb(css("--pay-lo")), payHi: rgb(css("--pay-hi")),
+      ink: css("--ink"), muted: css("--muted"), faint: css("--faint"), grid: css("--grid"), line: css("--line"),
+      surface: css("--surface"), pay: css("--series-pay"), learner: css("--learner"),
+      hex: { cls: NAMED.map((n) => css(n.color)).concat([css("--c-other")]) },
+    };
+  }
+
+  const lat = $("lattice"), off = document.createElement("canvas"), offCtx = off.getContext("2d");
+  function payRange() {
+    if (G.id === "mp") return [-S.stake, S.stake];
+    return [Math.min(S.Sp, S.P, S.R, S.T), Math.max(S.Sp, S.P, S.R, S.T)];
+  }
+  function drawLattice() {
+    const L = S.L, N = S.N, mode = $("colorby").value, kk = partners();
+    if (off.width !== L) { off.width = L; off.height = L; }
+    const img = offCtx.createImageData(L, L), d = img.data;
+    const [lo, hi] = payRange();
+    for (let i = 0; i < N; i++) {
+      let c;
+      if (mode === "class") c = palette.cls[S.cls[i]];
+      else if (mode === "coop") {
+        const v = S.coop[i] / kk;
+        c = v < 0.5 ? mix(palette.neg, palette.mid, v * 2) : mix(palette.mid, palette.pos, (v - 0.5) * 2);
+      } else if (mode === "pay") {
+        const v = Math.min(1, Math.max(0, hi > lo ? (S.pay[i] / kk - lo) / (hi - lo) : 0.5));
+        if (G.id === "mp") c = v < 0.5 ? mix(palette.neg, palette.mid, v * 2) : mix(palette.mid, palette.pos, (v - 0.5) * 2);
+        else c = mix(palette.payLo, palette.payHi, v);
+      } else c = mix(palette.seqLo, palette.seqHi, S.X[i * 5 + Number(mode)]);
+      d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255;
+    }
+    offCtx.putImageData(img, 0, 0);
+    const box = lat.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    const W = Math.max(1, Math.round(box.width * dpr));
+    if (lat.width !== W) { lat.width = W; lat.height = W; }
+    const ctx = lat.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(off, 0, 0, W, W);
+    if (LR.on) { // the learner: a purple cell
+      const cell = W / L;
+      ctx.fillStyle = palette.learner;
+      for (const l of LR.list) ctx.fillRect((l.site % L) * cell, Math.floor(l.site / L) * cell, cell, cell);
+    }
+  }
+
+  function drawLegend() {
+    drawLatticeLegend();
+    if (LR.on) $("legend").insertAdjacentHTML("beforeend",
+      `<span><span class="sw" style="background:${palette.learner}"></span>learner</span>`);
+  }
+  function drawLatticeLegend() {
+    const mode = $("colorby").value, el = $("legend");
+    el.title = "";
+    if (mode === "class") {
+      el.innerHTML = NAMED.map((n, i) => `<span><span class="sw" style="background:${palette.hex.cls[i]}"></span>${n.name}</span>`).join("") +
+        `<span><span class="sw" style="background:${palette.hex.cls[MIXED]}"></span>mixed (none within 0.5)</span>`;
+    } else if (mode === "coop") {
+      const [l, r] = G.id === "mp" ? ["always loses", "always wins"] : ["always D", "always C"];
+      el.innerHTML = `<span>${l}</span><span class="ramp" style="background:linear-gradient(90deg,${css("--div-neg")},${css("--div-mid")},${css("--div-pos")})"></span><span>${r}</span>`;
+    } else if (mode === "pay") {
+      const [lo, hi] = payRange();
+      const ramp = G.id === "mp" ? `${css("--div-neg")},${css("--div-mid")},${css("--div-pos")}` : `${css("--pay-lo")},${css("--pay-hi")}`;
+      el.innerHTML = `<span>${lo}</span><span class="ramp" style="background:linear-gradient(90deg,${ramp})"></span><span>${hi} per partner per round${G.id === "mp" ? " (grey = 0)" : ""}</span>`;
+    } else {
+      el.innerHTML = `<span>${COMP[Number(mode)]} = 0</span><span class="ramp" style="background:linear-gradient(90deg,${css("--seq-lo")},${css("--seq-hi")})"></span><span>1</span>`;
+    }
+  }
+
+  // Generic chart helpers (canvas, crosshair hover)
+  const hover = {};
+  function setupCanvas(cv) {
+    const box = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    const W = Math.max(1, Math.round(box.width * dpr)), H = Math.max(1, Math.round(box.height * dpr));
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    const ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, box.width, box.height);
+    return { ctx, w: box.width, h: box.height };
+  }
+  function fmt(v, digits = 2) { return Number.isFinite(v) ? v.toFixed(digits) : "-"; }
+
+  function lineChart(id, series, y0, y1, refs) {
+    const cv = $(id), { ctx, w, h } = setupCanvas(cv);
+    const padL = 34, padR = 10, padT = 6, padB = 18;
+    const gens = S.hist.gen, n = gens.length, gMax = Math.max(1, gens[n - 1] || 1);
+    const X = (g) => padL + (w - padL - padR) * (g / gMax);
+    const Y = (v) => padT + (h - padT - padB) * (1 - (v - y0) / (y1 - y0));
+    ctx.font = "11px " + getComputedStyle(document.body).getPropertyValue("--font-data");
+    ctx.textBaseline = "middle";
+    for (let i = 0; i <= 2; i++) {
+      const v = y0 + (y1 - y0) * i / 2, y = Y(v);
+      ctx.strokeStyle = palette.grid; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+      const dec = y1 - y0 < 0.1 ? 3 : y1 - y0 < 1 ? 2 : 1; // more decimals for small ranges
+      ctx.fillStyle = palette.muted; ctx.textAlign = "right"; ctx.fillText(String(Number(v.toFixed(dec))), padL - 6, y);
+    }
+    (refs || []).forEach(({ v, label }) => {
+      if (v < y0 || v > y1) return;
+      const y = Y(v);
+      ctx.strokeStyle = palette.line; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+      ctx.fillStyle = palette.faint; ctx.textAlign = "left"; ctx.fillText(label, padL + 4, y - 7);
+    });
+    ctx.fillStyle = palette.muted; ctx.textAlign = "right"; ctx.textBaseline = "alphabetic";
+    ctx.fillText(`gen ${gMax}`, w - padR, h - 3);
+    ctx.textAlign = "left"; ctx.fillText("0", padL, h - 3);
+    series.forEach((s) => {
+      ctx.strokeStyle = s.color; ctx.lineWidth = s.width || 2; ctx.lineJoin = "round"; ctx.setLineDash(s.dash || []);
+      ctx.beginPath();
+      let pen = false; // NaN (e.g. learner switched off) breaks the line
+      for (let i = 0; i < n; i++) {
+        const v = s.data[i];
+        if (!Number.isFinite(v)) { pen = false; continue; }
+        const x = X(gens[i]), y = Y(v);
+        if (pen) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        pen = true;
+      }
+      ctx.stroke(); ctx.setLineDash([]);
+      if (n && !s.dash && Number.isFinite(s.data[n - 1])) {
+        ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(X(gens[n - 1]), Y(s.data[n - 1]), 3, 0, 7); ctx.fill();
+      }
+    });
+    const hv = hover[id];
+    if (hv && n) {
+      const g = ((hv.x - padL) / (w - padL - padR)) * gMax;
+      let idx = 0, best = Infinity;
+      for (let i = 0; i < n; i++) { const d = Math.abs(gens[i] - g); if (d < best) { best = d; idx = i; } }
+      const x = X(gens[idx]);
+      ctx.strokeStyle = palette.faint; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, h - padB); ctx.stroke();
+      series.forEach((s) => {
+        if (!Number.isFinite(s.data[idx])) return;
+        ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(x, Y(s.data[idx]), 4, 0, 7); ctx.fill();
+        ctx.strokeStyle = palette.surface; ctx.lineWidth = 2; ctx.stroke();
+      });
+      showTip(hv.cx, hv.cy, `<div class="t-head">Generation ${gens[idx]}</div>` +
+        series.map((s) => `<div><span class="sw" style="background:${s.color}"></span>${s.label} ${fmt(s.data[idx], s.digits ?? 2)}</div>`).join(""));
+    }
+  }
+
+  function vectorChart() {
+    const id = "ch-vec", cv = $(id), { ctx, w, h } = setupCanvas(cv);
+    const rows = 5, gap = 10, labelW = 36, histW = Math.min(150, w * 0.32), sparkW = w - labelW - histW - 18;
+    const rowH = (h - gap * (rows - 1)) / rows;
+    const gens = S.hist.gen, n = gens.length, gMax = Math.max(1, gens[n - 1] || 1);
+    const seqHi = css("--seq-hi");
+    ctx.font = "11px " + getComputedStyle(document.body).getPropertyValue("--font-data");
+    const hv = hover[id];
+    let idx = -1;
+    if (hv && n && hv.x >= labelW && hv.x <= labelW + sparkW) {
+      const g = ((hv.x - labelW) / sparkW) * gMax;
+      let best = Infinity;
+      for (let i = 0; i < n; i++) { const d = Math.abs(gens[i] - g); if (d < best) { best = d; idx = i; } }
+    }
+    for (let q = 0; q < rows; q++) {
+      const top = q * (rowH + gap), Y = (v) => top + 3 + (rowH - 6) * (1 - v), X = (g) => labelW + sparkW * (g / gMax);
+      ctx.fillStyle = palette.ink; ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.fillText(COMP[q], 0, top + rowH / 2 - 7);
+      ctx.strokeStyle = palette.grid; ctx.lineWidth = 1;
+      ctx.strokeRect(labelW + 0.5, top + 0.5, sparkW - 1, rowH - 1);
+      ctx.beginPath(); ctx.moveTo(labelW, Y(0.5)); ctx.lineTo(labelW + sparkW, Y(0.5)); ctx.stroke();
+      const data = S.hist.mean[q];
+      ctx.strokeStyle = seqHi; ctx.lineWidth = 2; ctx.beginPath();
+      for (let i = 0; i < n; i++) { const x = X(gens[i]), y = Y(data[i]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.stroke();
+      if (n) {
+        ctx.fillStyle = palette.muted; ctx.textAlign = "left";
+        ctx.fillText(fmt(data[n - 1]), 0, top + rowH / 2 + 8);
+      }
+      if (idx >= 0) {
+        const x = X(gens[idx]);
+        ctx.strokeStyle = palette.faint; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + rowH); ctx.stroke();
+        ctx.fillStyle = seqHi; ctx.beginPath(); ctx.arc(x, Y(data[idx]), 3.5, 0, 7); ctx.fill();
+      }
+      // histogram of the current population, 10 bins on [0, 1]
+      const bins = new Array(10).fill(0);
+      for (let i = 0; i < S.N; i++) bins[Math.min(9, Math.floor(S.X[i * 5 + q] * 10))]++;
+      const bx = labelW + sparkW + 18, bw = histW / 10, maxB = Math.max(...bins);
+      for (let b = 0; b < 10; b++) {
+        const bh = maxB ? (rowH - 4) * bins[b] / maxB : 0;
+        ctx.fillStyle = seqHi;
+        ctx.fillRect(bx + b * bw + 1, top + rowH - bh, bw - 2, bh);
+      }
+      ctx.strokeStyle = palette.line; ctx.beginPath(); ctx.moveTo(bx, top + rowH + 0.5); ctx.lineTo(bx + histW, top + rowH + 0.5); ctx.stroke();
+    }
+    ctx.fillStyle = palette.muted; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    if (idx >= 0) {
+      showTip(hv.cx, hv.cy, `<div class="t-head">Generation ${gens[idx]}, population mean</div>` +
+        COMP.map((c, q) => `<div>${c.padEnd(4, " ")} ${fmt(S.hist.mean[q][idx])}</div>`).join(""));
+    }
+  }
+
+  function drawCharts() {
+    const h = S.hist;
+    lineChart("ch-mix", NAMED.map((nm, i) => ({ data: h.cls[i], color: palette.hex.cls[i], label: nm.name }))
+      .concat([{ data: h.cls[MIXED], color: palette.hex.cls[MIXED], label: "mixed" }]), 0, 1);
+    if (G.id === "mp") {
+      // the spread is usually small, so this chart scales to its own data
+      const top = Math.max(0.01 * S.stake, ...h.spread.filter(Number.isFinite)) * 1.15;
+      lineChart("ch-coop", [{ data: h.spread, color: palette.ink, label: "payoff spread", digits: 3 }], 0, top);
+      lineChart("ch-pay", [{ data: h.expl, color: palette.ink, label: "exploitability" }], 0, S.stake);
+      vectorChart();
+      return;
+    }
+    // reference lines first, so the lattice line is drawn on top
+    const refs = (wm, mm) => [
+      { data: wm, color: palette.muted, label: "well-mixed", dash: REF_DASH.wm, width: 1.6 },
+      { data: mm, color: palette.muted, label: "mean vs mean", dash: REF_DASH.mm, width: 1.6 },
+    ];
+    lineChart("ch-coop", refs(h.wmCoop, h.mmCoop).concat([{ data: h.coop, color: palette.ink, label: "lattice" }]), 0, 1);
+    const [lo, hi] = payRange();
+    lineChart("ch-pay", refs(h.wmPay, h.mmPay).concat([{ data: h.pay, color: palette.ink, label: "lattice" }]), lo, hi);
+    vectorChart();
+  }
+
+  const REF_DASH = { wm: [6, 4], mm: [1.5, 3.5] };
+  function lineSample(color, dash, width) {
+    const da = dash ? ` stroke-dasharray="${dash.join(" ")}"` : "";
+    return `<svg width="24" height="8" aria-hidden="true" style="vertical-align:1px;margin-right:5px">` +
+      `<line x1="0" y1="4" x2="24" y2="4" stroke="${color}" stroke-width="${width}"${da}></line></svg>`;
+  }
+  function drawLineLegends() {
+    if (G.id === "mp") {
+      $("legend-coop").innerHTML = `<span>${lineSample(palette.ink, null, 2)}payoff spread</span>`;
+      $("legend-pay").innerHTML = `<span>${lineSample(palette.ink, null, 2)}exploitability of the mean vector</span>`;
+      return;
+    }
+    const refsHtml = `<span>${lineSample(palette.muted, REF_DASH.wm, 1.6)}well-mixed</span>` +
+      `<span>${lineSample(palette.muted, REF_DASH.mm, 1.6)}mean vs mean</span>`;
+    $("legend-coop").innerHTML = `<span>${lineSample(palette.ink, null, 2)}lattice</span>` + refsHtml;
+    $("legend-pay").innerHTML = `<span>${lineSample(palette.ink, null, 2)}lattice</span>` + refsHtml;
+  }
+
+  function drawMixLegend() {
+    drawLineLegends();
+    $("legend-mix").innerHTML = NAMED.map((n, i) => `<span><span class="sw" style="background:${palette.hex.cls[i]}"></span>${n.name}</span>`).join("") +
+      `<span><span class="sw" style="background:${palette.hex.cls[MIXED]}"></span>mixed</span>`;
+  }
+
+  function drawStatus() {
+    $("st-gen").textContent = S.gen;
+    if (G.id === "mp") {
+      $("st-coop").textContent = S.last ? S.last.spread.toFixed(3) : "-";
+      $("st-pay").textContent = S.last ? S.last.expl.toFixed(3) : "-";
+    } else {
+      $("st-coop").textContent = S.last ? (100 * S.last.coop).toFixed(1) + "%" : "-";
+      $("st-pay").textContent = S.last ? S.last.pay.toFixed(2) : "-";
+    }
+    $("st-ms").textContent = S.lastMs ? S.lastMs.toFixed(1) : "-";
+    drawLearnerReadout();
+  }
+
+  function drawLearnerReadout() {
+    const el = $("learner-readout");
+    const n = LR.list.length;
+    if (!n) { el.innerHTML = "<span>No learners: every player imitates.</span>"; return; }
+    const counts = new Array(MIXED + 1).fill(0);
+    for (const l of LR.list) counts[S.cls[l.site]]++;
+    const names = NAMED.map((x) => x.name).concat(["mixed"]);
+    const parts = counts.map((c, i) => [c, i]).filter(([c]) => c);
+    el.innerHTML = `<span>What the ${n} learner${n > 1 ? "s are" : " is"} playing now</span>` +
+      `<div class="mixbar" role="img" aria-label="${parts.map(([c, i]) => `${names[i]} ${c}`).join(", ")}">` +
+      parts.map(([c, i]) => `<span style="width:${(100 * c) / n}%;background:${palette.hex.cls[i]}" title="${names[i]}: ${c}"></span>`).join("") +
+      `</div><div class="legend" style="margin-top:2px">` +
+      parts.map(([c, i]) => `<span><span class="sw" style="background:${palette.hex.cls[i]}"></span>${names[i]} ${c}</span>`).join("") + `</div>`;
+  }
+
+  function render() {
+    if (!hover["lattice"] && !Object.values(hover).some(Boolean)) hideTip();
+    drawLattice(); drawCharts(); drawStatus();
+    if (hover["lattice"]) latticeTip();
+  }
+
+  // ------------------------------------------------------------------ tooltips
+  const tip = $("tip");
+  function showTip(cx, cy, html) {
+    tip.innerHTML = html; tip.hidden = false;
+    const r = tip.getBoundingClientRect();
+    let x = cx + 14, y = cy + 14;
+    if (x + r.width > window.innerWidth - 8) x = cx - r.width - 14;
+    if (y + r.height > window.innerHeight - 8) y = cy - r.height - 14;
+    tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
+  }
+  function hideTip() { tip.hidden = true; }
+
+  function latticeTip() {
+    const hv = hover["lattice"], box = lat.getBoundingClientRect();
+    const x = Math.floor((hv.x / box.width) * S.L), y = Math.floor((hv.y / box.height) * S.L);
+    if (x < 0 || y < 0 || x >= S.L || y >= S.L) return hideTip();
+    const i = y * S.L + x, kk = partners(), c = S.cls[i];
+    const [r, dist] = nearest(S.X, i);
+    const lrn = LR.on && LR.isLearner && LR.isLearner[i] ? LR.list.find((l) => l.site === i) : null, isL = !!lrn;
+    const name = (isL ? (lrn.phase === "trial" ? "A learner, playing a trial vector. " : "A learner, playing its kept vector. ") : "") +
+      (r < 0 ? "Mixed (no named strategy within 0.5)" : `Nearest ${REFS[r].name} (distance ${dist.toFixed(2)})`);
+    const sw = isL ? palette.learner : palette.hex.cls[c];
+    showTip(hv.cx, hv.cy,
+      `<div class="t-head"><span class="sw" style="background:${sw}"></span>${isL ? "Learner" : "Player"} (${y}, ${x})</div><div style="font-family:var(--font-ui);margin-bottom:4px">${name}</div>` +
+      COMP.map((n, q) => `<div>${n.padEnd(4, " ")} ${fmt(S.X[i * 5 + q])}</div>`).join("") +
+      `<div style="margin-top:4px">payoff ${fmt(S.pay[i] / kk)} per partner per round</div>` +
+      `<div>${G.rateWord} ${(100 * S.coop[i] / kk).toFixed(0)}%</div>`);
+  }
+
+  function attachHover(el, id) {
+    el.addEventListener("pointermove", (e) => {
+      const r = el.getBoundingClientRect();
+      hover[id] = { x: e.clientX - r.left, y: e.clientY - r.top, cx: e.clientX, cy: e.clientY };
+      render();
+    });
+    el.addEventListener("pointerleave", () => { hover[id] = null; hideTip(); render(); });
+  }
+  attachHover(lat, "lattice");
+  ["ch-mix", "ch-coop", "ch-pay", "ch-vec"].forEach((id) => attachHover($(id), id));
+
+  // ------------------------------------------------------------------ controls
+  let running = false, acc = 0, lastT = 0;
+  function speed() { const v = Number($("speed").value); return v > 60 ? Infinity : v; }
+  function loop(ts) {
+    if (running) {
+      const sp = speed();
+      if (sp === Infinity) {
+        const start = performance.now();
+        do { step(); } while (performance.now() - start < 24);
+      } else {
+        acc += Math.min(250, ts - (lastT || ts)) * sp / 1000;
+        let n = 0;
+        while (acc >= 1 && n < 30) { step(); acc -= 1; n++; }
+      }
+      render();
+    }
+    lastT = ts;
+    requestAnimationFrame(loop);
+  }
+  function setRunning(on) {
+    running = on; acc = 1;
+    $("btn-run").textContent = on ? "Pause" : "Run";
+  }
+  $("btn-run").addEventListener("click", () => setRunning(!running));
+  $("btn-step").addEventListener("click", () => { setRunning(false); step(); render(); });
+  $("btn-reset").addEventListener("click", () => { readAll(); restart(); render(); });
+  $("btn-seed").addEventListener("click", () => { $("seed").value = Math.floor(Math.random() * 100000); readAll(); restart(); render(); });
+  $("speed").addEventListener("input", () => {
+    const sp = speed();
+    $("speed-out").textContent = sp === Infinity ? "as fast as possible" : `${sp} steps/s`;
+  });
+
+  function num(id, fallback) { const v = parseFloat($(id).value); return Number.isFinite(v) ? v : fallback; }
+  // The controls as a parameter object, in the same format run files record.
+  function controlParams() {
+    return {
+      game: $("game").value, T: num("T", 5), R: num("R", 3), P: num("P", 1), S: num("S", 0), stake: num("stake", 1),
+      L: Number($("L").value), radius: Number($("radius").value), K: num("K", 0.2), rounds: num("rounds", 3),
+      selfInteraction: $("selfint").checked, mode: $("mode").value, seed: num("seed", 1),
+      learner: { count: num("nlearners", 0), W: num("W", 3), sigma: num("sigma", 0.1), copyable: $("copyable").checked },
+    };
+  }
+  // Apply the controls. Before the first step a change simply restarts the run with the new
+  // parameters; later changes are recorded as edits. opts says what the page recomputes after the
+  // change, so a replay can repeat exactly the same operations.
+  function readAll(opts = {}) {
+    const before = S.params ? JSON.stringify(S.params) : null;
+    sim.configure(controlParams());
+    syncGame();
+    if (!runStart || before === null || JSON.stringify(S.params) === before) return;
+    if (S.gen === 0) { restart(); return; }
+    runEdits.push({ gen: S.gen, params: clone(S.params), replayGames: !!opts.replayGames, learnersPlaced: !!opts.learnersPlaced });
+  }
+  function drawChips() {
+    const { T, R, P } = S, Sv = S.Sp;
+    const pd = T > R && R > P && P > Sv, weak = T > R && R > P && P === Sv, ipd = 2 * R > T + Sv;
+    const items = [
+      [pd || weak, pd ? "Prisoner's Dilemma: T > R > P > S" : weak ? "Weak PD: T > R > P = S" : "Not a PD: needs T > R > P > S"],
+      [ipd, ipd ? "Iterated PD: 2R > T + S" : "2R ≤ T + S: taking turns exploiting beats cooperating"],
+    ];
+    const lines = R !== P
+      ? [`Greed: (T − P) / (R − P) = ${fmt((T - P) / (R - P))}`, `Fear: (P − S) / (R − P) = ${fmt((P - Sv) / (R - P))}`]
+      : ["Greed and fear are undefined when R = P"];
+    $("chips").innerHTML = items.map(([ok, txt]) => `<div class="chip ${ok ? "ok" : "bad"}"><i>${ok ? "✓" : "✕"}</i><span>${txt}</span></div>`).join("") +
+      lines.map((t) => `<div class="chip"><i></i><span>${t}</span></div>`).join("");
+  }
+  // Live parameters: recompute the current generation's games, keep the strategies.
+  function liveChange() {
+    const gen0 = S.gen === 0; // at generation 0 readAll restarts the run with the new parameters
+    readAll({ replayGames: true }); drawChips();
+    if (!gen0) { play(); record(true); relogLast(); }
+    drawLegend(); render();
+  }
+  ["T", "R", "S", "P", "rounds", "stake"].forEach((id) => $(id).addEventListener("input", liveChange));
+
+  // Switch the game: swap the game definition, show its controls and texts, and restart, since
+  // the five probabilities mean different things in each game.
+  function applyGame() {
+    sim.configure({ game: $("game").value });
+    syncGame();
+    document.querySelectorAll("[data-game]").forEach((el) => { el.hidden = el.dataset.game !== G.id; });
+    const opts = $("colorby").options;
+    for (const o of opts) {
+      if (o.value === "coop") o.textContent = G.rateOption;
+      else if (/^[0-4]$/.test(o.value)) o.textContent = G.compLong[Number(o.value)];
+    }
+    $("selfint").disabled = G.id !== "pd";
+    $("st-a-label").textContent = G.id === "mp" ? "payoff spread" : "C moves";
+    $("st-b-label").textContent = G.id === "mp" ? "exploitability" : "payoff";
+  }
+  $("game").addEventListener("change", () => {
+    applyGame(); readAll(); readPalette(); restart(); drawChips(); drawLegend(); drawMixLegend(); render();
+  });
+  ["selfint", "mode"].forEach((id) => $(id).addEventListener("change", liveChange));
+  $("K").addEventListener("input", () => { $("K-range").value = $("K").value; readAll(); });
+  $("K-range").addEventListener("input", () => { $("K").value = $("K-range").value; readAll(); });
+  ["L", "radius"].forEach((id) => $(id).addEventListener("change", () => { readAll(); restart(); render(); }));
+  $("seed").addEventListener("change", () => { readAll(); restart(); render(); });
+  document.querySelectorAll("[data-preset]").forEach((b) => b.addEventListener("click", () => {
+    const [T, R, P, Sv] = b.dataset.preset.split(","); // presets are written T, R, P, S
+    $("T").value = T; $("R").value = R; $("S").value = Sv; $("P").value = P;
+    liveChange();
+  }));
+  $("colorby").addEventListener("change", () => { drawLegend(); render(); });
+  // Changing the number of learners during a run places a new set at random sites, each starting
+  // from the vector already at its site; former learners carry on as imitators.
+  $("nlearners").addEventListener("change", () => {
+    const before = LR.count, gen0 = S.gen === 0;
+    readAll({ replayGames: true, learnersPlaced: true });
+    if (!gen0 && LR.count !== before) { learnerInit(); learnerApply(); play(); record(true); relogLast(); }
+    drawLegend(); render();
+  });
+  ["W", "sigma"].forEach((id) => $(id).addEventListener("input", () => { readAll(); drawLearnerReadout(); }));
+  $("copyable").addEventListener("change", () => { readAll(); });
+
+  const reTheme = () => { readPalette(); drawLegend(); drawMixLegend(); render(); };
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", reTheme);
+  new MutationObserver(reTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  window.addEventListener("resize", render);
+
+  // ------------------------------------------------------------------ run files: load, replay, export
+  const runStatus = (html) => { $("run-status").innerHTML = html; };
+  function ensureOption(id, value, label) {
+    const sel = $(id), v = String(value);
+    if (![...sel.options].some((o) => o.value === v)) sel.add(new Option(label, v));
+    sel.value = v;
+  }
+  function setControls(p) {
+    const set = (id, v) => { const el = $(id); if (el.type === "checkbox") el.checked = !!v; else el.value = String(v); };
+    set("game", p.game);
+    ["T", "R", "P", "S", "stake", "K", "rounds", "mode", "seed"].forEach((k) => set(k, p[k]));
+    $("K-range").value = p.K;
+    set("selfint", p.selfInteraction);
+    ensureOption("L", p.L, `${p.L} x ${p.L}`);
+    ensureOption("radius", p.radius, `${Number(p.radius).toFixed(3)}`);
+    set("nlearners", p.learner.count ?? (p.learner.on ? 1 : 0)); set("W", p.learner.W); set("sigma", p.learner.sigma); set("copyable", p.learner.copyable);
+  }
+  // Run from generation 0 to gen with these parameters, repeating any recorded edits.
+  function replay(params, gen, edits = []) {
+    setRunning(false);
+    setControls(params); applyGame(); readPalette(); readAll(); restart();
+    const todo = edits.slice().sort((a, b) => a.gen - b.gen);
+    for (let g = 1; g <= gen; g++) {
+      step();
+      while (todo.length && todo[0].gen === g) {
+        const e = todo.shift();
+        sim.configure(e.params); syncGame();
+        if (e.learnersPlaced || e.learnerStarted) { learnerInit(); learnerApply(); }
+        if (e.replayGames) { play(); record(true); relogLast(); }
+        runEdits.push(clone(e));
+      }
+    }
+    setControls(S.params); drawChips(); drawLegend(); drawMixLegend(); render();
+  }
+  // Compare the replayed generation with a run file's final record, value by value.
+  function compareFinal(final) {
+    const now = sim.measure(), diffs = [];
+    for (const [k, v] of Object.entries(final)) {
+      if (["survivors", "fixationGen", "gen"].includes(k) || now[k] === undefined) continue;
+      const same = Array.isArray(v) ? v.length === now[k].length && v.every((x, i) => x === now[k][i]) : v === now[k];
+      if (!same) diffs.push(k);
+    }
+    return diffs;
+  }
+  function loadRun(run) {
+    if (!run || run.schema !== "lattice-game-sim/run@1" || !run.params) throw new Error("not a Lattice Game Sim run file");
+    runStatus(`Replaying to generation ${run.generations}…`);
+    setTimeout(() => {
+      try {
+        replay(run.params, run.generations, run.edits || []);
+        const diffs = compareFinal(run.final);
+        const version = run.modelVersion !== LatticeModel.MODEL_VERSION
+          ? ` The file was made with model version ${run.modelVersion}; this page runs version ${LatticeModel.MODEL_VERSION}.` : "";
+        runStatus(diffs.length
+          ? `<span><b>Replayed to generation ${run.generations}. It differs from the file</b> in: ${diffs.join(", ")}.${version}</span>`
+          : `<span><b>Replayed to generation ${run.generations}: matches the run file exactly.</b>${version}</span>`);
+      } catch (e) { runStatus(`<span>Could not replay this file: ${e.message}</span>`); }
+    }, 30);
+  }
+  $("btn-load").addEventListener("click", () => $("load-file").click());
+  $("load-file").addEventListener("change", (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try { loadRun(JSON.parse(reader.result)); }
+      catch (e) { runStatus(`<span>Could not read ${f.name}: ${e.message}</span>`); }
+      $("load-file").value = "";
+    };
+    reader.readAsText(f);
+  });
+
+  function exportRun() {
+    const complete = runLog.length === S.gen + 1;
+    const run = LatticeModel.buildRun({
+      params: runStart, generations: S.gen, logEvery: 1, records: runLog, survivors: sim.survivors(500),
+      classes: NAMED.map((n) => n.name).concat(["mixed"]), components: COMP.slice(),
+      meta: {
+        name: `page__${runStart.game}_seed=${runStart.seed}_gen=${S.gen}`, experiment: null,
+        model: { file: "simulator/model.js", version: LatticeModel.MODEL_VERSION, sha256: null, commit: null },
+        runner: { page: navigator.userAgent }, created: new Date().toISOString(),
+        reproducible: runEdits.length === 0 && complete, edits: runEdits,
+        note: runEdits.length
+          ? "Parameters were changed during the run (see edits). Load run file in the page replays them; the command-line runner does not."
+          : complete ? "Exported from the page. The command-line runner reproduces it from params and generations."
+          : `The page logged only the first ${LOG_LIMIT} generations.`,
+      },
+    });
+    return run;
+  }
+  $("btn-export").addEventListener("click", () => {
+    const panel = $("export-panel");
+    if (!panel.hidden) { panel.hidden = true; return; }
+    const run = exportRun();
+    $("export-text").value = JSON.stringify(run);
+    panel.hidden = false;
+    runStatus(run.reproducible
+      ? `<span>Run at generation ${S.gen}, reproducible from its parameters.</span>`
+      : `<span><b>Not reproducible by the runner:</b> ${runEdits.length} parameter edit${runEdits.length === 1 ? "" : "s"} during the run (listed in the file).</span>`);
+  });
+  $("btn-copy").addEventListener("click", () => {
+    const ta = $("export-text");
+    const fallback = () => { ta.focus(); ta.select(); runStatus("<span>Text selected: copy it with Ctrl+C or Cmd+C.</span>"); };
+    try { navigator.clipboard.writeText(ta.value).then(() => runStatus("<span>Copied the run file.</span>"), fallback); }
+    catch (_) { fallback(); }
+  });
+  // On the published page, saving goes through the viewer's downloads capability (they confirm the
+  // save). Opened as a local file there is no such capability, and a plain download link works.
+  let downloadsApi = null;
+  if (window.claude && typeof window.claude.use === "function") {
+    window.claude.use("downloads").then((d) => { downloadsApi = d; }, () => {});
+  }
+  $("btn-download").addEventListener("click", () => {
+    const text = $("export-text").value, filename = `${JSON.parse(text).name}.json`;
+    if (downloadsApi) {
+      downloadsApi.save({ filename, data: text }).then(
+        () => runStatus(`<span>Saved ${filename}.</span>`),
+        (e) => runStatus(e && e.code === "declined" ? "<span>Not saved.</span>"
+          : `<span>Could not save here (${(e && e.code) || "unavailable"}): use Copy instead.</span>`));
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    runStatus("<span>If no file was saved, use Copy instead.</span>");
+  });
+
+  // Open a run from the address bar (index.html?game=mp&seed=3&...&gen=500), as run files' replay links do.
+  function queryRun() {
+    const q = new URLSearchParams(location.search);
+    if (![...q.keys()].length) return null;
+    const p = clone(S.params), n = (k) => (q.has(k) ? Number(q.get(k)) : undefined), b = (k) => (q.has(k) ? q.get(k) === "1" : undefined);
+    if (q.has("game")) p.game = q.get("game");
+    if (q.has("mode")) p.mode = q.get("mode");
+    for (const k of ["T", "R", "P", "S", "stake", "L", "radius", "K", "rounds", "seed"]) if (q.has(k)) p[k] = n(k);
+    if (q.has("self")) p.selfInteraction = b("self");
+    if (q.has("learners")) p.learner.count = n("learners");
+    else if (q.has("learner")) p.learner.count = b("learner") ? 1 : 0; // older links
+    if (q.has("W")) p.learner.W = n("W");
+    if (q.has("sigma")) p.learner.sigma = n("sigma");
+    if (q.has("copyable")) p.learner.copyable = b("copyable");
+    return { params: p, gen: Math.max(0, Math.round(n("gen") || 0)) };
+  }
+
+  // test hook (used by the repository's check script; harmless for viewers)
+  window.__lipd = { S, LR, pairExpected, pairSampled, F, restart, step, play, readAll, stats, exploitability,
+    applyGame, MAP_MATCH, MAP_MISMATCH, sim, get G() { return G; }, exportRun, loadRun, replay,
+    get runEdits() { return runEdits; }, get runLog() { return runLog; } };
+
+  applyGame(); readPalette(); readAll(); drawChips(); restart(); drawLegend(); drawMixLegend(); render();
+  const fromQuery = queryRun();
+  if (fromQuery) {
+    replay(fromQuery.params, fromQuery.gen);
+    runStatus(`<span>Opened from the address: generation ${S.gen}.</span>`);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
