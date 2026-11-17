@@ -69,6 +69,19 @@ header.top h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0
 header.top p { margin: 2px 0 0; color: var(--muted); max-width: 70ch; }
 .status { font-family: var(--font-data); font-size: 12.5px; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
 .status b { color: var(--ink); font-weight: 500; }
+header.top { position: relative; padding-right: 48px; }
+.top-right { display: flex; align-items: center; }
+.theme-btn {
+  width: 32px; height: 32px; padding: 0; display: inline-grid; place-items: center; flex: none;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); cursor: pointer;
+  position: absolute; top: 0; right: 0;
+}
+.theme-btn:hover { color: var(--ink); }
+.theme-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.theme-btn svg { width: 16px; height: 16px; }
+.theme-btn .moon { display: none; }
+.theme-btn.is-dark .sun { display: none; }
+.theme-btn.is-dark .moon { display: block; }
 
 aside.rail { grid-area: rail; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .group { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
@@ -162,11 +175,17 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
       <h1>Lattice Game Sim</h1>
       <p>Every player starts with a random memory-one strategy, plays a repeated game with each of its neighbours, and copies better-scoring neighbours with the Fermi rule.</p>
     </div>
+    <div class="top-right">
     <div class="status" aria-live="polite">
       <span>generation <b id="st-gen">0</b></span>
       <span><span id="st-a-label">C moves</span> <b id="st-coop">-</b></span>
       <span><span id="st-b-label">payoff</span> <b id="st-pay">-</b></span>
       <span><b id="st-ms">-</b> ms / step</span>
+    </div>
+    <button type="button" class="theme-btn" id="btn-theme" title="Switch to dark theme" aria-label="Switch to dark theme">
+      <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+      <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
     </div>
   </header>
 
@@ -256,7 +275,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     <section class="group" aria-labelledby="g-learn">
       <h2 id="g-learn">Learner settings</h2>
       <div class="row"><label for="nlearners">Number of learners <span class="learner-dot" aria-hidden="true"></span></label><input id="nlearners" type="number" min="0" max="5000" step="1" value="0"></div>
-      <p class="hint">Learners sit at random sites chosen from the seed and are drawn in black. Changing the number during a run places a new set.</p>
+      <p class="hint">Learners sit at random sites chosen from the seed and are drawn as solid cells in the text colour: black on the light theme, white on the dark one. Changing the number during a run places a new set.</p>
       <div class="row"><label for="W">Window W (generations)</label><input id="W" type="number" min="1" max="200" step="1" value="3"></div>
       <div class="row"><label for="sigma">Trial step size &sigma;</label><input id="sigma" type="number" min="0.01" max="0.5" step="0.01" value="0.1"></div>
       <div class="check"><input id="copyable" type="checkbox" checked><label for="copyable">Imitators can copy learners</label></div>
@@ -844,6 +863,26 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
   const reTheme = () => { readPalette(); drawLegend(); drawMixLegend(); render(); };
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", reTheme);
   new MutationObserver(reTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  // Theme button: follows the system setting until clicked; the choice is remembered in this browser.
+  const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const isDark = () => {
+    const t = document.documentElement.getAttribute("data-theme");
+    return t ? t === "dark" : darkQuery.matches;
+  };
+  const showTheme = () => {
+    const dark = isDark(), btn = $("btn-theme"), label = `Switch to ${dark ? "light" : "dark"} theme`;
+    btn.classList.toggle("is-dark", dark); btn.title = label; btn.setAttribute("aria-label", label);
+  };
+  try { const saved = localStorage.getItem("lgs-theme"); if (saved === "dark" || saved === "light") document.documentElement.setAttribute("data-theme", saved); } catch (_) { /* no storage */ }
+  showTheme();
+  darkQuery.addEventListener("change", showTheme);
+  $("btn-theme").addEventListener("click", () => {
+    const next = isDark() ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("lgs-theme", next); } catch (_) { /* no storage */ }
+    showTheme();
+  });
   window.addEventListener("resize", render);
 
   // ------------------------------------------------------------------ run files: load, replay, export
