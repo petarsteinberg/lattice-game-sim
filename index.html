@@ -128,7 +128,6 @@ details.explain summary { cursor: pointer; color: var(--ink); font-weight: 500; 
 details.explain p { margin: 8px 0 0; max-width: 68ch; }
 details.explain ul, details.explain ol { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; }
 .group details.explain { margin-top: 0; }
-.learner-dot { display: inline-block; width: 11px; height: 11px; border-radius: 2px; background: var(--learner); vertical-align: -1px; margin-left: 4px; }
 .mixbar { display: flex; height: 14px; border-radius: 3px; overflow: hidden; background: var(--grid); margin-top: 4px; }
 .mixbar span { height: 100%; }
 .mixbar span + span { box-shadow: inset 2px 0 0 var(--surface); }
@@ -274,8 +273,8 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
 
     <section class="group" aria-labelledby="g-learn">
       <h2 id="g-learn">Learner settings</h2>
-      <div class="row"><label for="nlearners">Number of learners <span class="learner-dot" aria-hidden="true"></span></label><input id="nlearners" type="number" min="0" max="5000" step="1" value="0"></div>
-      <p class="hint">Learners sit at random sites chosen from the seed and are drawn as solid cells in the text colour: black on the light theme, white on the dark one. Changing the number during a run places a new set.</p>
+      <div class="row"><label for="nlearners">Number of learners</label><input id="nlearners" type="number" min="0" max="5000" step="1" value="0"></div>
+      <p class="hint">Learners sit at random sites chosen from the seed and are coloured by their strategy like everyone else (hover over a cell to see whether it is a learner). Changing the number during a run places a new set.</p>
       <div class="row"><label for="W">Window W (generations)</label><input id="W" type="number" min="1" max="200" step="1" value="3"></div>
       <div class="row"><label for="sigma">Trial step size &sigma;</label><input id="sigma" type="number" min="0.01" max="0.5" step="0.01" value="0.1"></div>
       <div class="check"><input id="copyable" type="checkbox" checked><label for="copyable">Imitators can copy learners</label></div>
@@ -474,17 +473,10 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     const ctx = lat.getContext("2d");
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(off, 0, 0, W, W);
-    if (LR.on) { // the learner: a purple cell
-      const cell = W / L;
-      ctx.fillStyle = palette.learner;
-      for (const l of LR.list) ctx.fillRect((l.site % L) * cell, Math.floor(l.site / L) * cell, cell, cell);
-    }
   }
 
   function drawLegend() {
     drawLatticeLegend();
-    if (LR.on) $("legend").insertAdjacentHTML("beforeend",
-      `<span><span class="sw" style="background:${palette.learner}"></span>learner</span>`);
   }
   function drawLatticeLegend() {
     const mode = $("colorby").value, el = $("legend");
@@ -726,7 +718,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     const lrn = LR.on && LR.isLearner && LR.isLearner[i] ? LR.list.find((l) => l.site === i) : null, isL = !!lrn;
     const name = (isL ? (lrn.phase === "trial" ? "A learner, playing a trial vector. " : "A learner, playing its kept vector. ") : "") +
       (r < 0 ? "Mixed (no named strategy within 0.5)" : `Nearest ${REFS[r].name} (distance ${dist.toFixed(2)})`);
-    const sw = isL ? palette.learner : palette.hex.cls[c];
+    const sw = palette.hex.cls[c];
     showTip(hv.cx, hv.cy,
       `<div class="t-head"><span class="sw" style="background:${sw}"></span>${isL ? "Learner" : "Player"} (${y}, ${x})</div><div style="font-family:var(--font-ui);margin-bottom:4px">${name}</div>` +
       COMP.map((n, q) => `<div>${n.padEnd(4, " ")} ${fmt(S.X[i * 5 + q])}</div>`).join("") +
