@@ -274,20 +274,14 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     <section class="group" aria-labelledby="g-learn">
       <h2 id="g-learn">Learner settings</h2>
       <div class="row"><label for="nlearners">Number of learners</label><input id="nlearners" type="number" min="0" max="5000" step="1" value="0"></div>
-      <p class="hint">Learners sit at random sites chosen from the seed When the lattice is coloured by nearest named strategy they are drawn as solid cells in the text colour (black on the light theme, white on the dark one); under the other colourings they are coloured like everyone else. Hover over a cell to see whether it is a learner. Changing the number during a run places a new set.</p>
+      <p class="hint">Placed at random sites (set by the seed); shown in black or white when colouring by nearest named strategy.</p>
       <div class="row"><label for="W">Window W (generations)</label><input id="W" type="number" min="1" max="200" step="1" value="3"></div>
       <div class="row"><label for="sigma">Trial step size &sigma;</label><input id="sigma" type="number" min="0.01" max="0.5" step="0.01" value="0.1"></div>
       <div class="check"><input id="copyable" type="checkbox" checked><label for="copyable">Imitators can copy learners</label></div>
       <div class="readout" id="learner-readout" aria-live="polite"></div>
       <details class="explain">
         <summary>How the learners learn</summary>
-        <p>Each learner sees only its own payoff, per partner per round, and never imitates. Each repeats three steps on its own:</p>
-        <ol>
-          <li><b>Measure.</b> Play its kept vector for W generations and average its payoff.</li>
-          <li><b>Try.</b> Add a small random change to each of its five probabilities (normally distributed with standard deviation &sigma;, clipped to 0&ndash;1) and play that for the next W generations.</li>
-          <li><b>Keep or revert.</b> If the trial window earned more than the window before it, the change becomes the kept vector and the next trial starts straight away. Otherwise it goes back to the kept vector and measures it again first, since the lattice has moved on.</li>
-        </ol>
-        <p>A longer window judges each change over a longer stretch, long enough for neighbours to react to it (for example by copying it), at the cost of fewer trials. In sampled mode the payoffs a learner sees are the realised ones.</p>
+        <p>A learner never imitates. It plays its kept vector for W generations, then tries a copy with each probability nudged by a random amount (standard deviation &sigma;) for the next W. If the trial earned more, it keeps it; otherwise it reverts.</p>
       </details>
     </section>
 
