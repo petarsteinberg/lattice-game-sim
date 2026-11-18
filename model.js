@@ -27,7 +27,9 @@
 
   // 2: any number of learners at random sites (version 1 had one learner at the centre)
   // 3: "history": "carry" keeps each pair's game going across generations (version 2 = "reset")
-  const MODEL_VERSION = "3";
+  // 4: grim trigger is its own class (was grouped with TFT); in carry mode the reference lines use
+  //    each pair's long-run (stationary) play instead of a fresh 100-round game
+  const MODEL_VERSION = "4";
 
   // Parameters of one run. Every run file records the full set, after validation.
   const DEFAULTS = Object.freeze({
@@ -78,20 +80,21 @@
         id: "pd",
         comp: ["p0", "pCC", "pCD", "pDC", "pDD"],
         compLong: ["p0 (first move)", "pCC", "pCD", "pDC", "pDD"],
-        // Colour classes (at most four hues stay distinguishable on the lattice). TFT and grim
-        // trigger share a class: they differ only in pDC, which is unused once nobody defects first.
+        // Colour classes. TFT and grim trigger differ only in pDC (forgive a partner who
+        // cooperated after being exploited, or never forgive), which matters in continuing games.
         named: [
           { name: "ALLC", color: "--c-allc" },
           { name: "ALLD", color: "--c-alld" },
-          { name: "TFT / grim", color: "--c-tft" },
+          { name: "TFT", color: "--c-tft" },
+          { name: "grim", color: "--c-grim" },
           { name: "WSLS", color: "--c-wsls" },
         ],
         refs: [
           { name: "ALLC", v: [1, 1, 1, 1, 1], cls: 0 },
           { name: "ALLD", v: [0, 0, 0, 0, 0], cls: 1 },
           { name: "TFT", v: [1, 1, 0, 1, 0], cls: 2 },
-          { name: "grim trigger", v: [1, 1, 0, 0, 0], cls: 2 },
-          { name: "WSLS", v: [1, 1, 0, 0, 1], cls: 3 },
+          { name: "grim trigger", v: [1, 1, 0, 0, 0], cls: 3 },
+          { name: "WSLS", v: [1, 1, 0, 0, 1], cls: 4 },
         ],
         dims: [0, 1, 2, 3, 4],
         rateWord: "C moves",
@@ -300,6 +303,40 @@
       }
       F[0] /= m; F[1] /= m; F[2] /= m; F[3] /= m;
     }
+    // Long-run play of a pair in a game that never ends: the stationary distribution of the
+    // four-outcome chain (from a's side), solved exactly. It does not depend on p0 or on how the
+    // game started. If the chain has more than one long-run pattern (entries of exactly 0 or 1),
+    // the average over PAIR_LONG rounds from the opening is used instead.
+    const PAIR_LONG = 2000, PM = new Float64Array(16);
+    function pairStationary(X, a, b, ma = MAP_PD, mb = MAP_PD) {
+      const xa = [X[a + ma[0]], X[a + ma[1]], X[a + ma[2]], X[a + ma[3]]];
+      const yb = [X[b + mb[0]], X[b + mb[2]], X[b + mb[1]], X[b + mb[3]]];
+      // equations: sum_s pi_s (P[s][t] - [s == t]) = 0 for t = 0..2, and sum_s pi_s = 1
+      for (let s = 0; s < 4; s++) {
+        const x = xa[s], y = yb[s], row = [x * y, x * (1 - y), (1 - x) * y, (1 - x) * (1 - y)];
+        for (let t = 0; t < 3; t++) PM[t * 4 + s] = row[t] - (s === t ? 1 : 0);
+        PM[12 + s] = 1;
+      }
+      const rhs = [0, 0, 0, 1];
+      for (let c = 0; c < 4; c++) { // Gaussian elimination with partial pivoting
+        let piv = c;
+        for (let r = c + 1; r < 4; r++) if (Math.abs(PM[r * 4 + c]) > Math.abs(PM[piv * 4 + c])) piv = r;
+        if (Math.abs(PM[piv * 4 + c]) < 1e-12) { pairExpected(X, a, b, PAIR_LONG, ma, mb); return; }
+        if (piv !== c) {
+          for (let k = 0; k < 4; k++) { const t = PM[c * 4 + k]; PM[c * 4 + k] = PM[piv * 4 + k]; PM[piv * 4 + k] = t; }
+          const t = rhs[c]; rhs[c] = rhs[piv]; rhs[piv] = t;
+        }
+        for (let r = 0; r < 4; r++) {
+          if (r === c) continue;
+          const f = PM[r * 4 + c] / PM[c * 4 + c];
+          if (!f) continue;
+          for (let k = c; k < 4; k++) PM[r * 4 + k] -= f * PM[c * 4 + k];
+          rhs[r] -= f * rhs[c];
+        }
+      }
+      for (let k = 0; k < 4; k++) F[k] = rhs[k] / PM[k * 4 + k];
+    }
+
     // Carried state for every pair (games per pair: 1 in the PD, 2 in matching pennies) and for
     // self-play. Allocated on first use in carry mode; a fresh allocation starts from p0.
     // again = true replays the current generation (after a settings change) from the state it
@@ -456,13 +493,15 @@
     // Reference lines. Mean vs mean: the population's mean vector against itself (exact).
     // Well-mixed: expected outcome of WM_PAIRS random pairs of players drawn from anywhere on
     // the lattice. It uses its own random stream, so it never changes the run itself.
-    // In carry mode the games never end, so the references use a long fresh game (REF_ROUNDS rounds).
+    // In carry mode the games never end, so the references use each pair's long-run (stationary)
+    // play. Exploitability (matching pennies) uses a REF_ROUNDS-round game there.
     const WM_PAIRS = 5000, RX = new Float64Array(10), REF_ROUNDS = 100;
     function refRounds() { return S.history === "carry" ? REF_ROUNDS : S.m; }
     function references(mean) {
-      const { R, T, P, N, X } = S, Sv = S.Sp, m = refRounds();
+      const { R, T, P, N, X, m } = S, Sv = S.Sp, carry = S.history === "carry";
+      const pair = (Xs, a, b) => (carry ? pairStationary(Xs, a, b) : pairExpected(Xs, a, b, m));
       RX.set(mean, 0); RX.set(mean, 5);
-      pairExpected(RX, 0, 5, m);
+      pair(RX, 0, 5);
       const mmPay = F[0] * R + F[1] * Sv + F[2] * T + F[3] * P, mmCoop = F[0] + F[1];
       const rng = mulberry32((Math.imul(S.seed + 1, 7919) ^ Math.imul(S.gen + 1, 104729)) >>> 0);
       let wp = 0, wc = 0;
@@ -470,7 +509,7 @@
         const i = Math.floor(rng() * N);
         let j = Math.floor(rng() * (N - 1));
         if (j >= i) j += 1;
-        pairExpected(X, i * 5, j * 5, m);
+        pair(X, i * 5, j * 5);
         wp += F[0] * R + F[1] * Sv + F[2] * T + F[3] * P;
         wc += F[0] + F[1];
       }
@@ -601,7 +640,7 @@
       get G() { return G; }, get COMP() { return COMP; }, get NAMED() { return NAMED; },
       get REFS() { return REFS; }, get MIXED() { return MIXED; },
       configure, restart, step, play, record, stats, measure, distinctCount, survivors,
-      partners, nearest, classify, exploitability, pairExpected, pairSampled,
+      partners, nearest, classify, exploitability, pairExpected, pairSampled, pairStationary,
       learnerInit, learnerApply, learnerObserve,
     };
     configure(params);

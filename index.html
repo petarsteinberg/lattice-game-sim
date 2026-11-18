@@ -20,6 +20,7 @@
   --c-allc: #2a78d6;
   --c-alld: #e34948;
   --c-tft: #1baf7a;
+  --c-grim: #9b4dca;
   --c-wsls: #eda100;
   --c-other: #c4a684;
   --c-random: #a3aab4;
@@ -41,7 +42,7 @@
   :root:not([data-theme="light"]) {
     --bg: #111317; --surface: #191c21; --ink: #eceef1; --muted: #a3a9b2; --faint: #7c838d;
     --line: #2b3037; --grid: #23272d; --focus: #5b9bea; --ok: #4cc28a; --bad: #ef7b78;
-    --c-allc: #3987e5; --c-alld: #e66767; --c-tft: #199e70; --c-wsls: #c98500; --c-other: #9b7b58; --c-random: #6c737d;
+    --c-allc: #3987e5; --c-alld: #e66767; --c-tft: #199e70; --c-grim: #b57ee0; --c-wsls: #c98500; --c-other: #9b7b58; --c-random: #6c737d;
     --div-neg: #e66767; --div-mid: #2c3036; --div-pos: #3987e5;
     --seq-lo: #1d232c; --seq-hi: #8db8f2; --pay-lo: #2a2019; --pay-hi: #f0a46e; --series-pay: #9085e9; --learner: #ffffff;
     color-scheme: dark;
@@ -50,7 +51,7 @@
 :root[data-theme="dark"] {
   --bg: #111317; --surface: #191c21; --ink: #eceef1; --muted: #a3a9b2; --faint: #7c838d;
   --line: #2b3037; --grid: #23272d; --focus: #5b9bea; --ok: #4cc28a; --bad: #ef7b78;
-  --c-allc: #3987e5; --c-alld: #e66767; --c-tft: #199e70; --c-wsls: #c98500; --c-other: #9b7b58; --c-random: #6c737d;
+  --c-allc: #3987e5; --c-alld: #e66767; --c-tft: #199e70; --c-grim: #b57ee0; --c-wsls: #c98500; --c-other: #9b7b58; --c-random: #6c737d;
   --div-neg: #e66767; --div-mid: #2c3036; --div-pos: #3987e5;
   --seq-lo: #1d232c; --seq-hi: #8db8f2; --pay-lo: #2a2019; --pay-hi: #f0a46e; --series-pay: #9085e9; --learner: #ffffff;
   color-scheme: dark;
@@ -358,7 +359,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
             <li>WSLS (1, 1, 0, 0, 1): repeats its move after a good outcome (CC, DC), switches after a bad one (CD, DD)</li>
           </ul>
           <p>The distance between a player's vector p and a named vector q is the usual straight-line distance, &radic;((p0&minus;q0)&sup2; + &hellip; + (pDD&minus;qDD)&sup2;). It is 0 for an exact match and at most &radic;5 &asymp; 2.24.</p>
-          <p>A player is counted as the closest named strategy if that distance is under 0.5, and as mixed otherwise. For example, (0.9, 1, 0.1, 0.2, 0) is 0.24 from grim trigger and 0.81 from TFT, so it counts as grim. TFT and grim trigger share one colour.</p>
+          <p>A player is counted as the closest named strategy if that distance is under 0.5, and as mixed otherwise. For example, (0.9, 1, 0.1, 0.2, 0) is 0.24 from grim trigger and 0.81 from TFT, so it counts as grim.</p>
         </details>
       </section>
       <section class="panel" aria-labelledby="h-coop">
@@ -380,7 +381,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
           <p><b>Well-mixed</b> takes the same players but pairs each with randomly chosen players from anywhere on the lattice, ignoring who sits next to whom. It is estimated each generation from 5,000 random pairs.</p>
           <p><b>Mean vs mean</b> is a single player using the population's average vector (the mean of each of the five probabilities) playing against itself, computed exactly.</p>
           <p>The gaps separate two effects. Lattice above well-mixed is <em>clustering</em>: neighbours are more alike than random pairs, so cooperators meet cooperators more often. A gap between well-mixed and mean vs mean is <em>diversity</em>: payoff is not linear in the vector, so the average strategy is a poor stand-in for the actual mix, and it may describe nobody (half TFT and half ALLD averages to 0.5, 0.5, 0, 0.5, 0). Without mutation, imitation eventually leaves one vector, and then all three lines meet.</p>
-          <p>Both reference lines use the expected game outcome, also when the lattice uses sampled moves.</p>
+          <p>Both reference lines use the expected game outcome, also when the lattice uses sampled moves. When the same game continues, games never end, so both lines use each pair's long-run play: the share of each outcome once the game has gone on long enough to forget how it started (computed exactly). Once a single vector holds the lattice, the lattice's own cooperation settles onto both lines.</p>
         </details>
       </section>
       <section class="panel" aria-labelledby="h-pay">
