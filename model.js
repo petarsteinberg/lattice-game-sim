@@ -26,7 +26,8 @@
   "use strict";
 
   // 2: any number of learners at random sites (version 1 had one learner at the centre)
-  const MODEL_VERSION = "2";
+  // 3: "history": "carry" keeps each pair's game going across generations (version 2 = "reset")
+  const MODEL_VERSION = "3";
 
   // Parameters of one run. Every run file records the full set, after validation.
   const DEFAULTS = Object.freeze({
@@ -37,6 +38,8 @@
     radius: Math.SQRT2,         // neighbour radius (1, sqrt 2, 2, sqrt 5, sqrt 8, 3)
     K: 0.05,                    // Fermi temperature
     rounds: 3,                  // rounds per pairing per generation
+    history: "reset",           // "reset": a new game every generation (p0 opens it); "carry": one game
+                                // per pair that never restarts (p0 only in the very first round)
     selfInteraction: false,     // PD only
     mode: "expected",           // "expected" (exact) or "sampled"
     seed: 1,
@@ -127,7 +130,10 @@
       game: "pd", stake: 1,
       L: 50, r: Math.SQRT2, T: 5, R: 3, Sp: 0, P: 1, K: 0.2, m: 10, self: false, mode: "expected", seed: 1,
       N: 0, k: 0, nb: null, half: null, halfK: 0, X: null, Y: null, pay: null, coop: null, cls: null, rng: null, gen: 0,
-      hist: null,
+      hist: null, history: "reset",
+      // carry: each pair's last outcome (from the lower-indexed side of the pair's loop). Expected
+      // mode keeps its probability distribution (4 per game), sampled mode the outcome (255 = none).
+      edge: null, selfEdge: null, edgeReady: false,
     };
 
     function offsets(r) {
@@ -158,6 +164,7 @@
       buildLattice();
       for (let i = 0; i < S.N * 5; i++) S.X[i] = S.rng();
       S.gen = 0;
+      S.edge = null; S.selfEdge = null; S.edgeReady = false;
       S.hist = { gen: [], mean: [[], [], [], [], []], lVec: [[], [], [], [], []],
         cls: Array.from({ length: MIXED + 1 }, () => []) };
       G.series.forEach((k) => { S.hist[k] = []; });
@@ -235,16 +242,29 @@
 
     // Outcome frequencies (AA, AB, BA, BB from player a's side) averaged over m rounds.
     // ma / mb: which vector entry a and b use after each outcome, seen from their own side.
+    // With `st` (carry): the game continues from the outcome stored at st[so..] (once S.edgeReady),
+    // and the last round's outcome is stored back there for the next generation.
     const F = new Float64Array(4);
-    function pairExpected(X, a, b, m, ma = MAP_PD, mb = MAP_PD) {
+    function pairExpected(X, a, b, m, ma = MAP_PD, mb = MAP_PD, st = null, so = 0) {
       const x0 = X[a], y0 = X[b];
-      let v0 = x0 * y0, v1 = x0 * (1 - y0), v2 = (1 - x0) * y0, v3 = (1 - x0) * (1 - y0);
+      let v0, v1, v2, v3;
       let s0 = 0, s1 = 0, s2 = 0, s3 = 0;
       const xa0 = X[a + ma[0]], xa1 = X[a + ma[1]], xa2 = X[a + ma[2]], xa3 = X[a + ma[3]];
       // b's P(first action) in a's outcome labels: b sees outcome s as SWAP[s]
       const yb0 = X[b + mb[0]], yb1 = X[b + mb[2]], yb2 = X[b + mb[1]], yb3 = X[b + mb[3]];
+      if (st && S.edgeReady) { // the next round, from the stored last outcome and the current vectors
+        const d0 = st[so], d1 = st[so + 1], d2 = st[so + 2], d3 = st[so + 3];
+        const w0 = d0 * xa0, w1 = d1 * xa1, w2 = d2 * xa2, w3 = d3 * xa3;
+        const u0 = d0 - w0, u1 = d1 - w1, u2 = d2 - w2, u3 = d3 - w3;
+        v0 = w0 * yb0 + w1 * yb1 + w2 * yb2 + w3 * yb3;
+        v2 = u0 * yb0 + u1 * yb1 + u2 * yb2 + u3 * yb3;
+        v1 = w0 + w1 + w2 + w3 - v0; v3 = u0 + u1 + u2 + u3 - v2;
+      } else {
+        v0 = x0 * y0; v1 = x0 * (1 - y0); v2 = (1 - x0) * y0; v3 = (1 - x0) * (1 - y0);
+      }
       for (let t = 0; t < m; t++) {
         s0 += v0; s1 += v1; s2 += v2; s3 += v3;
+        if (st && t === m - 1) { st[so] = v0; st[so + 1] = v1; st[so + 2] = v2; st[so + 3] = v3; break; }
         const w0 = v0 * xa0, w1 = v1 * xa1, w2 = v2 * xa2, w3 = v3 * xa3;
         const u0 = v0 - w0, u1 = v1 - w1, u2 = v2 - w2, u3 = v3 - w3;
         const n0 = w0 * yb0 + w1 * yb1 + w2 * yb2 + w3 * yb3;
@@ -253,9 +273,24 @@
       }
       F[0] = s0 / m; F[1] = s1 / m; F[2] = s2 / m; F[3] = s3 / m;
     }
-    function pairSampled(X, a, b, m, rng, ma = MAP_PD, mb = MAP_PD) {
-      let xc = rng() < X[a], yc = rng() < X[b];
+    function pairSampled(X, a, b, m, rng, ma = MAP_PD, mb = MAP_PD, st = null, so = 0) {
       F[0] = F[1] = F[2] = F[3] = 0;
+      if (st) { // carry: no draws after the last round; the next generation draws from the stored outcome
+        const last = S.edgeReady ? st[so] : 255;
+        let xc, yc;
+        if (last === 255) { xc = rng() < X[a]; yc = rng() < X[b]; }
+        else { xc = rng() < X[a + ma[last]]; yc = rng() < X[b + mb[SWAP[last]]]; }
+        let s = 0;
+        for (let t = 0; t < m; t++) {
+          if (t) { const nx = rng() < X[a + ma[s]], ny = rng() < X[b + mb[SWAP[s]]]; xc = nx; yc = ny; }
+          s = (xc ? 0 : 2) + (yc ? 0 : 1);
+          F[s] += 1;
+        }
+        st[so] = s;
+        F[0] /= m; F[1] /= m; F[2] /= m; F[3] /= m;
+        return;
+      }
+      let xc = rng() < X[a], yc = rng() < X[b];
       for (let t = 0; t < m; t++) {
         const s = (xc ? 0 : 2) + (yc ? 0 : 1);
         F[s] += 1;
@@ -264,28 +299,42 @@
       }
       F[0] /= m; F[1] /= m; F[2] /= m; F[3] /= m;
     }
+    // Carried state for every pair (games per pair: 1 in the PD, 2 in matching pennies) and for
+    // self-play. Allocated on first use in carry mode; a fresh allocation starts from p0.
+    function edgeState() {
+      if (S.history !== "carry") return false;
+      const gp = G.id === "mp" ? 2 : 1, sampled = S.mode === "sampled", w = sampled ? 1 : 4;
+      const n = S.N * S.halfK * gp * w;
+      const Type = sampled ? Uint8Array : Float64Array;
+      if (!S.edge || S.edge.length !== n || !(S.edge instanceof Type)) {
+        S.edge = new Type(n); S.selfEdge = new Type(S.N * w); S.edgeReady = false;
+      }
+      return true;
+    }
 
     function play() {
       if (G.id === "mp") return playMP();
       const { N, X, pay, coop, half, halfK, m, R, T, P } = S, Sv = S.Sp;
       const sampled = S.mode === "sampled";
+      const carry = edgeState(), E = carry ? S.edge : null, SE = carry ? S.selfEdge : null, w = sampled ? 1 : 4;
       pay.fill(0); coop.fill(0);
       for (let i = 0; i < N; i++) {
         const a = i * 5;
         for (let h = 0; h < halfK; h++) {
-          const j = half[i * halfK + h], b = j * 5;
-          if (sampled) pairSampled(X, a, b, m, S.rng); else pairExpected(X, a, b, m);
+          const j = half[i * halfK + h], b = j * 5, e = (i * halfK + h) * w;
+          if (sampled) pairSampled(X, a, b, m, S.rng, MAP_PD, MAP_PD, E, e); else pairExpected(X, a, b, m, MAP_PD, MAP_PD, E, e);
           pay[i] += F[0] * R + F[1] * Sv + F[2] * T + F[3] * P;
           pay[j] += F[0] * R + F[1] * T + F[2] * Sv + F[3] * P;
           coop[i] += F[0] + F[1];
           coop[j] += F[0] + F[2];
         }
         if (S.self) {
-          if (sampled) pairSampled(X, a, a, m, S.rng); else pairExpected(X, a, a, m);
+          if (sampled) pairSampled(X, a, a, m, S.rng, MAP_PD, MAP_PD, SE, i * w); else pairExpected(X, a, a, m, MAP_PD, MAP_PD, SE, i * w);
           pay[i] += F[0] * R + F[1] * Sv + F[2] * T + F[3] * P;
           coop[i] += F[0] + F[1];
         }
       }
+      if (carry) S.edgeReady = true;
       classify();
     }
 
@@ -295,16 +344,17 @@
     function playMP() {
       const { N, X, pay, coop, half, halfK, m } = S, st = S.stake;
       const sampled = S.mode === "sampled";
+      const carry = edgeState(), E = carry ? S.edge : null, w = sampled ? 1 : 4;
       pay.fill(0); coop.fill(0);
       for (let i = 0; i < N; i++) {
         const a = i * 5;
         for (let h = 0; h < halfK; h++) {
-          const j = half[i * halfK + h], b = j * 5;
+          const j = half[i * halfK + h], b = j * 5, e = (i * halfK + h) * 2 * w;
           // game 1: i matches, j mismatches; i wins on HH and TT
-          if (sampled) pairSampled(X, a, b, m, S.rng, MAP_MATCH, MAP_MISMATCH); else pairExpected(X, a, b, m, MAP_MATCH, MAP_MISMATCH);
+          if (sampled) pairSampled(X, a, b, m, S.rng, MAP_MATCH, MAP_MISMATCH, E, e); else pairExpected(X, a, b, m, MAP_MATCH, MAP_MISMATCH, E, e);
           const w1 = F[0] + F[3];
           // game 2: i mismatches, j matches; i wins on HT and TH
-          if (sampled) pairSampled(X, a, b, m, S.rng, MAP_MISMATCH, MAP_MATCH); else pairExpected(X, a, b, m, MAP_MISMATCH, MAP_MATCH);
+          if (sampled) pairSampled(X, a, b, m, S.rng, MAP_MISMATCH, MAP_MATCH, E, e + w); else pairExpected(X, a, b, m, MAP_MISMATCH, MAP_MATCH, E, e + w);
           const w2 = F[1] + F[2];
           const win = (w1 + w2) / 2;          // i's share of rounds won over both games
           const p = st * (2 * win - 1);        // i's average payoff per round; j gets -p
@@ -312,6 +362,7 @@
           coop[i] += win; coop[j] += 1 - win;
         }
       }
+      if (carry) S.edgeReady = true;
       classify();
     }
 
@@ -362,7 +413,7 @@
         let ss = 0;
         for (let i = 0; i < N; i++) { const d = pay[i] / kk - out.pay; ss += d * d; }
         out.spread = Math.sqrt(ss / N);
-        out.expl = exploitability(out.mean, S.m, S.stake);
+        out.expl = exploitability(out.mean, refRounds(), S.stake);
       }
       return out;
     }
@@ -395,9 +446,11 @@
     // Reference lines. Mean vs mean: the population's mean vector against itself (exact).
     // Well-mixed: expected outcome of WM_PAIRS random pairs of players drawn from anywhere on
     // the lattice. It uses its own random stream, so it never changes the run itself.
-    const WM_PAIRS = 5000, RX = new Float64Array(10);
+    // In carry mode the games never end, so the references use a long fresh game (REF_ROUNDS rounds).
+    const WM_PAIRS = 5000, RX = new Float64Array(10), REF_ROUNDS = 100;
+    function refRounds() { return S.history === "carry" ? REF_ROUNDS : S.m; }
     function references(mean) {
-      const { R, T, P, m, N, X } = S, Sv = S.Sp;
+      const { R, T, P, N, X } = S, Sv = S.Sp, m = refRounds();
       RX.set(mean, 0); RX.set(mean, 5);
       pairExpected(RX, 0, 5, m);
       const mmPay = F[0] * R + F[1] * Sv + F[2] * T + F[3] * P, mmCoop = F[0] + F[1];
@@ -477,12 +530,15 @@
       S.stake = Math.max(0.01, num(q.stake, 1));
       S.self = S.game === "pd" && !!q.selfInteraction; // playing yourself nets 0 in matching pennies
       S.mode = q.mode === "sampled" ? "sampled" : "expected";
+      const history = q.history === "carry" ? "carry" : "reset";
+      if (history !== S.history) S.edgeReady = false; // switching back to carry starts a fresh game
+      S.history = history;
       S.seed = Math.max(0, Math.round(num(q.seed, 1)));
       LR.count = Math.max(0, Math.round(num(q.learner.count, 0))); LR.copyable = !!q.learner.copyable;
       LR.W = Math.max(1, Math.round(num(q.learner.W, DEFAULTS.learner.W))); LR.sigma = Math.max(0, num(q.learner.sigma, 0.1));
       S.params = {
         game: S.game, T: S.T, R: S.R, P: S.P, S: S.Sp, stake: S.stake, L: S.L, radius: S.r, K: S.K,
-        rounds: S.m, selfInteraction: S.self, mode: S.mode, seed: S.seed,
+        rounds: S.m, history: S.history, selfInteraction: S.self, mode: S.mode, seed: S.seed,
         learner: { count: LR.count, W: LR.W, sigma: LR.sigma, copyable: LR.copyable },
       };
       return S.params;
@@ -571,7 +627,7 @@
   // Query string that opens a run in the page (works when the page is opened as a local file).
   function replayQuery(p, gen) {
     const q = new URLSearchParams();
-    for (const k of ["game", "T", "R", "P", "S", "stake", "L", "radius", "K", "rounds", "mode", "seed"]) q.set(k, String(p[k]));
+    for (const k of ["game", "T", "R", "P", "S", "stake", "L", "radius", "K", "rounds", "history", "mode", "seed"]) q.set(k, String(p[k] ?? DEFAULTS[k]));
     q.set("self", p.selfInteraction ? "1" : "0");
     q.set("learners", String(p.learner.count));
     q.set("W", String(p.learner.W)); q.set("sigma", String(p.learner.sigma)); q.set("copyable", p.learner.copyable ? "1" : "0");

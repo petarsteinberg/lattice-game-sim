@@ -263,7 +263,10 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
         <p class="hint" style="margin:0">Each round both players show Heads or Tails. The matcher wins the stake if the coins match, the mismatcher wins it if they differ. Zero-sum: one player's gain is the other's loss.</p>
         <p class="hint" style="margin:0">Every pair of neighbours plays twice, once with each as the matcher, so everyone holds one strategy and can copy anyone.</p>
       </div>
-      <div class="row"><label for="rounds">Rounds per pairing</label><input id="rounds" type="number" min="1" max="200" step="1" value="3"></div>
+      <div class="row"><label for="rounds">Rounds per generation</label><input id="rounds" type="number" min="1" max="200" step="1" value="3"></div>
+      <div class="row"><label for="history">Between generations</label>
+        <select id="history"><option value="reset" selected>New game each time</option><option value="carry">Same game continues</option></select></div>
+      <p class="hint">New game: every generation each pair plays a fresh game that opens with p0. Same game: each pair's game never restarts, so the next round answers the last outcome, whoever holds the vector now; p0 is used only in the very first round.</p>
       <div class="check"><input id="selfint" type="checkbox"><label for="selfint">Play against yourself too</label></div>
       <p class="hint" data-game="mp" hidden>Not used in matching pennies: playing yourself in both roles always nets 0.</p>
       <div class="row"><label for="mode">Game outcome</label>
@@ -288,7 +291,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
       <div class="readout" id="learner-readout" aria-live="polite"></div>
       <details class="explain">
         <summary>How the learners learn</summary>
-        <p>A learner never imitates. It plays its kept vector for W generations, then tries a copy with each probability nudged by a random amount (standard deviation &sigma;) for the next W. If the trial earned more, it keeps it; otherwise it reverts.</p>
+        <p>A learner never imitates. It plays its kept vector for W generations, then tries a copy with each probability nudged by a random amount (standard deviation &sigma;) for the next W. If the trial earned more, it keeps it; otherwise it reverts. With the same game continuing and 1 round per generation, W counts rounds.</p>
       </details>
     </section>
 
@@ -297,10 +300,10 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
       <ol>
         <li data-game="pd">Each player holds five probabilities of cooperating: p0 in the first round, then pCC, pCD, pDC, pDD after each outcome (own move first).</li>
         <li data-game="mp" hidden>Each player holds five probabilities of playing Heads: p0 in the first round, then pHW, pHL, pTW, pTL after playing Heads and winning, Heads and losing, Tails and winning, Tails and losing. Stated by win or loss, they mean the same in either role.</li>
-        <li data-game="pd">Every pair of neighbours plays the set number of rounds. Each player's score for the generation is its average payoff per round in each of those games, added up over all its partners.</li>
+        <li data-game="pd">Every pair of neighbours plays the set number of rounds. Each player's score for the generation is its average payoff per round in each of those games, added up over all its partners. With "same game continues", the rounds pick up where the pair's last round left off instead of starting a new game, so with 1 round per generation the score is that single round's payoff.</li>
         <li data-game="mp" hidden>Every pair of neighbours plays the set number of rounds twice, once with each player as the matcher. A player's score from a pair is its average payoff per round over the two games; its score for the generation adds these up over all its partners.</li>
         <li>Every player then picks one neighbour at random and compares the two scores. It copies that neighbour's whole vector with the Fermi probability, which grows with how much higher the neighbour scored. All players update at once.</li>
-        <li>Scores have no memory. They come only from the games played in this generation and are thrown away afterwards, so a strategy that did well in earlier generations gets no credit for it. A copied vector starts the next generation with a fresh score.</li>
+        <li>Scores have no memory. They come only from the rounds played in this generation and are thrown away afterwards, so a strategy that did well in earlier generations gets no credit for it. A copied vector starts the next generation with a fresh score. (The game itself has memory when it continues: a copied vector answers the last outcome its new owner had with each partner.)</li>
         <li>Learners, if there are any, skip the copying step. Each plays its own vector and changes it only by trial and keep (see Learner settings).</li>
         <li>Generation 0 is a lattice of uniformly random vectors drawn from the seed.</li>
       </ol>
@@ -702,6 +705,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
       state = "strong";
       title = "Strong: every player holds the same vector." + (LR.list.length
         ? " Learners keep trying new vectors, so this can end."
+        : S.params.history === "carry" ? " The vectors can no longer change, but the continuing games still settle towards their long-run pattern."
         : (S.params.mode === "expected" ? " Nothing can change from here: every global measure is now fixed."
           : " The lattice can no longer change; with sampled moves the measures still fluctuate."));
     } else if (present.length === 1 && present[0] !== sim.MIXED) {
@@ -817,7 +821,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     return {
       game: $("game").value, T: num("T", 5), R: num("R", 3), P: num("P", 1), S: num("S", 0), stake: num("stake", 1),
       L: Number($("L").value), radius: Number($("radius").value), K: num("K", 0.2), rounds: num("rounds", 3),
-      selfInteraction: $("selfint").checked, mode: $("mode").value, seed: num("seed", 1),
+      history: $("history").value, selfInteraction: $("selfint").checked, mode: $("mode").value, seed: num("seed", 1),
       learner: { count: num("nlearners", 0), W: num("W", 3), sigma: num("sigma", 0.1), copyable: $("copyable").checked },
     };
   }
@@ -872,7 +876,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
   $("game").addEventListener("change", () => {
     applyGame(); readAll(); readPalette(); restart(); drawChips(); drawLegend(); drawMixLegend(); render();
   });
-  ["selfint", "mode"].forEach((id) => $(id).addEventListener("change", liveChange));
+  ["selfint", "mode", "history"].forEach((id) => $(id).addEventListener("change", liveChange));
   $("K").addEventListener("input", () => { $("K-range").value = $("K").value; readAll(); });
   $("K-range").addEventListener("input", () => { $("K").value = $("K-range").value; readAll(); });
   ["L", "radius"].forEach((id) => $(id).addEventListener("change", () => { readAll(); restart(); render(); }));
@@ -930,6 +934,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     const set = (id, v) => { const el = $(id); if (el.type === "checkbox") el.checked = !!v; else el.value = String(v); };
     set("game", p.game);
     ["T", "R", "P", "S", "stake", "K", "rounds", "mode", "seed"].forEach((k) => set(k, p[k]));
+    set("history", p.history || "reset"); // run files before model version 3 have no history
     $("K-range").value = p.K;
     set("selfint", p.selfInteraction);
     ensureOption("L", p.L, `${p.L} x ${p.L}`);
@@ -1054,6 +1059,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     const p = clone(S.params), n = (k) => (q.has(k) ? Number(q.get(k)) : undefined), b = (k) => (q.has(k) ? q.get(k) === "1" : undefined);
     if (q.has("game")) p.game = q.get("game");
     if (q.has("mode")) p.mode = q.get("mode");
+    if (q.has("history")) p.history = q.get("history");
     for (const k of ["T", "R", "P", "S", "stake", "L", "radius", "K", "rounds", "seed"]) if (q.has(k)) p[k] = n(k);
     if (q.has("self")) p.selfInteraction = b("self");
     if (q.has("learners")) p.learner.count = n("learners");
