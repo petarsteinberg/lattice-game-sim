@@ -29,7 +29,9 @@
   // 3: "history": "carry" keeps each pair's game going across generations (version 2 = "reset")
   // 4: grim trigger is its own class (was grouped with TFT); in carry mode the reference lines use
   //    each pair's long-run (stationary) play instead of a fresh 100-round game
-  const MODEL_VERSION = "4";
+  // 5: in carry mode p0 is used only in the first round, so strategies are classified on the four
+  //    response entries and learners no longer perturb p0
+  const MODEL_VERSION = "5";
 
   // Parameters of one run. Every run file records the full set, after validation.
   const DEFAULTS = Object.freeze({
@@ -238,7 +240,10 @@
         }
         l.t = 0; l.sum = 0;
         if (l.keptFresh) {
-          for (let q = 0; q < 5; q++) l.trial[q] = Math.min(1, Math.max(0, l.kept[q] + LR.sigma * gauss(l.rng)));
+          // in a continuing game p0 is never played again, so trials leave it as it is
+          const q0 = S.history === "carry" ? 1 : 0;
+          if (q0) l.trial[0] = l.kept[0];
+          for (let q = q0; q < 5; q++) l.trial[q] = Math.min(1, Math.max(0, l.kept[q] + LR.sigma * gauss(l.rng)));
           l.phase = "trial";
         } else l.phase = "measure";
       }
@@ -428,10 +433,15 @@
       S.X = Y; S.Y = X;
     }
 
+    // The entries that matter for play: in a continuing game p0 opens only the very first round,
+    // so strategies are compared on the four response entries (matching pennies always does).
+    const DIMS4 = [1, 2, 3, 4];
+    function playDims() { return S.history === "carry" ? DIMS4 : G.dims; }
+
     // Nearest reference strategy within CLASS_RADIUS (Euclidean over the game's dims); -1 if none.
     function nearest(X, i) {
       let best = -1, bd = CLASS_RADIUS * CLASS_RADIUS;
-      const dims = G.dims;
+      const dims = playDims();
       for (let r = 0; r < REFS.length; r++) {
         const v = REFS[r].v;
         let d = 0;
@@ -640,7 +650,7 @@
       get G() { return G; }, get COMP() { return COMP; }, get NAMED() { return NAMED; },
       get REFS() { return REFS; }, get MIXED() { return MIXED; },
       configure, restart, step, play, record, stats, measure, distinctCount, survivors,
-      partners, nearest, classify, exploitability, pairExpected, pairSampled, pairStationary,
+      partners, nearest, playDims, classify, exploitability, pairExpected, pairSampled, pairStationary,
       learnerInit, learnerApply, learnerObserve,
     };
     configure(params);

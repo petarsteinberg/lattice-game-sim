@@ -360,6 +360,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
           </ul>
           <p>The distance between a player's vector p and a named vector q is the usual straight-line distance, &radic;((p0&minus;q0)&sup2; + &hellip; + (pDD&minus;qDD)&sup2;). It is 0 for an exact match and at most &radic;5 &asymp; 2.24.</p>
           <p>A player is counted as the closest named strategy if that distance is under 0.5, and as mixed otherwise. For example, (0.9, 1, 0.1, 0.2, 0) is 0.24 from grim trigger and 0.81 from TFT, so it counts as grim.</p>
+          <p>When the same game continues, p0 only opened the very first round, so it is left out: strategies are compared on pCC, pCD, pDC and pDD alone (distance at most 2).</p>
         </details>
       </section>
       <section class="panel" aria-labelledby="h-coop">
@@ -394,7 +395,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
       <section class="panel" aria-labelledby="h-vec">
         <div class="panel-head"><h3 id="h-vec">The strategy vector</h3>
           <span class="vec-count" title="Players whose five probabilities are exactly identical hold the same vector">unique vectors <b id="st-distinct">-</b> of <span id="st-players">-</span> players</span></div>
-        <p class="chart-sub" data-game="pd">Population mean over time (left) and distribution now (right)</p>
+        <p class="chart-sub" data-game="pd">Population mean over time (left) and distribution now (right). When the same game continues, p0 is greyed out: it opened the first round only.</p>
         <p class="chart-sub" data-game="mp" hidden>Probability of Heads: population mean over time (left) and distribution now (right). The midline 0.5 is the unexploitable value.</p>
         <canvas class="chart tall" id="ch-vec"></canvas>
       </section>
@@ -583,7 +584,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     const rows = 5, gap = 10, labelW = 36, histW = Math.min(150, w * 0.32), sparkW = w - labelW - histW - 18;
     const rowH = (h - gap * (rows - 1)) / rows;
     const gens = S.hist.gen, n = gens.length, gMax = Math.max(1, gens[n - 1] || 1);
-    const seqHi = css("--seq-hi");
+    const seqHiAll = css("--seq-hi");
     ctx.font = "11px " + getComputedStyle(document.body).getPropertyValue("--font-data");
     const hv = hover[id];
     let idx = -1;
@@ -592,11 +593,14 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
       let best = Infinity;
       for (let i = 0; i < n; i++) { const d = Math.abs(gens[i] - g); if (d < best) { best = d; idx = i; } }
     }
+    const p0Unused = S.params.history === "carry"; // continuing game: p0 opened round 1 and is never used again
     for (let q = 0; q < rows; q++) {
       const top = q * (rowH + gap), Y = (v) => top + 3 + (rowH - 6) * (1 - v), X = (g) => labelW + sparkW * (g / gMax);
-      ctx.fillStyle = palette.ink; ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.fillText(COMP[q], 0, top + rowH / 2 - 7);
+      const dim = p0Unused && q === 0, seqHi = dim ? palette.faint : seqHiAll;
+      ctx.fillStyle = dim ? palette.faint : palette.ink; ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.fillText(COMP[q], 0, top + rowH / 2 - 7);
       ctx.strokeStyle = palette.grid; ctx.lineWidth = 1;
       ctx.strokeRect(labelW + 0.5, top + 0.5, sparkW - 1, rowH - 1);
+      if (dim) { ctx.fillStyle = palette.faint; ctx.fillText("used in round 1 only", labelW + 6, top + 9); }
       ctx.beginPath(); ctx.moveTo(labelW, Y(0.5)); ctx.lineTo(labelW + sparkW, Y(0.5)); ctx.stroke();
       const data = S.hist.mean[q];
       ctx.strokeStyle = seqHi; ctx.lineWidth = 2; ctx.beginPath();
