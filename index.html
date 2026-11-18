@@ -853,7 +853,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
   function liveChange() {
     const gen0 = S.gen === 0; // at generation 0 readAll restarts the run with the new parameters
     readAll({ replayGames: true }); drawChips();
-    if (!gen0) { play(); record(true); relogLast(); }
+    if (!gen0) { play(true); record(true); relogLast(); }
     drawLegend(); render();
   }
   ["T", "R", "S", "P", "rounds", "stake"].forEach((id) => $(id).addEventListener("input", liveChange));
@@ -892,7 +892,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
   $("nlearners").addEventListener("change", () => {
     const before = LR.count, gen0 = S.gen === 0;
     readAll({ replayGames: true, learnersPlaced: true });
-    if (!gen0 && LR.count !== before) { learnerInit(); learnerApply(); play(); record(true); relogLast(); }
+    if (!gen0 && LR.count !== before) { learnerInit(); learnerApply(); play(true); record(true); relogLast(); }
     drawLegend(); render();
   });
   ["W", "sigma"].forEach((id) => $(id).addEventListener("input", () => { readAll(); drawLearnerReadout(); }));
@@ -952,7 +952,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
         const e = todo.shift();
         sim.configure(e.params); syncGame();
         if (e.learnersPlaced || e.learnerStarted) { learnerInit(); learnerApply(); }
-        if (e.replayGames) { play(); record(true); relogLast(); }
+        if (e.replayGames) { play(true); record(true); relogLast(); }
         runEdits.push(clone(e));
       }
     }

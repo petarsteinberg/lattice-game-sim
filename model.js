@@ -134,6 +134,7 @@
       // carry: each pair's last outcome (from the lower-indexed side of the pair's loop). Expected
       // mode keeps its probability distribution (4 per game), sampled mode the outcome (255 = none).
       edge: null, selfEdge: null, edgeReady: false,
+      edgeStart: null, selfEdgeStart: null, edgeReadyStart: false, // state at the start of this generation
     };
 
     function offsets(r) {
@@ -164,7 +165,7 @@
       buildLattice();
       for (let i = 0; i < S.N * 5; i++) S.X[i] = S.rng();
       S.gen = 0;
-      S.edge = null; S.selfEdge = null; S.edgeReady = false;
+      S.edge = null; S.selfEdge = null; S.edgeReady = false; S.edgeStart = null;
       S.hist = { gen: [], mean: [[], [], [], [], []], lVec: [[], [], [], [], []],
         cls: Array.from({ length: MIXED + 1 }, () => []) };
       G.series.forEach((k) => { S.hist[k] = []; });
@@ -301,22 +302,31 @@
     }
     // Carried state for every pair (games per pair: 1 in the PD, 2 in matching pennies) and for
     // self-play. Allocated on first use in carry mode; a fresh allocation starts from p0.
-    function edgeState() {
+    // again = true replays the current generation (after a settings change) from the state it
+    // started with, instead of advancing every game by another generation's rounds.
+    function edgeState(again) {
       if (S.history !== "carry") return false;
       const gp = G.id === "mp" ? 2 : 1, sampled = S.mode === "sampled", w = sampled ? 1 : 4;
       const n = S.N * S.halfK * gp * w;
       const Type = sampled ? Uint8Array : Float64Array;
       if (!S.edge || S.edge.length !== n || !(S.edge instanceof Type)) {
         S.edge = new Type(n); S.selfEdge = new Type(S.N * w); S.edgeReady = false;
+        S.edgeStart = null;
+      }
+      if (again && S.edgeStart && S.edgeStart.length === S.edge.length) {
+        S.edge.set(S.edgeStart); S.selfEdge.set(S.selfEdgeStart); S.edgeReady = S.edgeReadyStart;
+      } else {
+        if (!S.edgeStart || S.edgeStart.length !== S.edge.length) { S.edgeStart = new Type(n); S.selfEdgeStart = new Type(S.N * w); }
+        S.edgeStart.set(S.edge); S.selfEdgeStart.set(S.selfEdge); S.edgeReadyStart = S.edgeReady;
       }
       return true;
     }
 
-    function play() {
-      if (G.id === "mp") return playMP();
+    function play(again = false) {
+      if (G.id === "mp") return playMP(again);
       const { N, X, pay, coop, half, halfK, m, R, T, P } = S, Sv = S.Sp;
       const sampled = S.mode === "sampled";
-      const carry = edgeState(), E = carry ? S.edge : null, SE = carry ? S.selfEdge : null, w = sampled ? 1 : 4;
+      const carry = edgeState(again), E = carry ? S.edge : null, SE = carry ? S.selfEdge : null, w = sampled ? 1 : 4;
       pay.fill(0); coop.fill(0);
       for (let i = 0; i < N; i++) {
         const a = i * 5;
@@ -341,10 +351,10 @@
     // Matching pennies: every pair of neighbours plays twice, once with each player as the matcher.
     // A player's score from a pair is the average of the two games, so it lies in [-stake, +stake].
     // coop[] holds the win rate (share of rounds won, averaged over both roles).
-    function playMP() {
+    function playMP(again = false) {
       const { N, X, pay, coop, half, halfK, m } = S, st = S.stake;
       const sampled = S.mode === "sampled";
-      const carry = edgeState(), E = carry ? S.edge : null, w = sampled ? 1 : 4;
+      const carry = edgeState(again), E = carry ? S.edge : null, w = sampled ? 1 : 4;
       pay.fill(0); coop.fill(0);
       for (let i = 0; i < N; i++) {
         const a = i * 5;
