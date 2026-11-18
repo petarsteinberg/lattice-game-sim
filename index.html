@@ -350,6 +350,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
         </details>
         <details class="explain" data-game="pd">
           <summary>What <em>closest to a named strategy</em> means</summary>
+          <div data-history="reset">
           <p>A strategy is five numbers (p0, pCC, pCD, pDC, pDD), so it is a point in a five-dimensional box. Each named strategy is a corner of that box:</p>
           <ul>
             <li>ALLC (1, 1, 1, 1, 1): always cooperates</li>
@@ -360,7 +361,19 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
           </ul>
           <p>The distance between a player's vector p and a named vector q is the usual straight-line distance, &radic;((p0&minus;q0)&sup2; + &hellip; + (pDD&minus;qDD)&sup2;). It is 0 for an exact match and at most &radic;5 &asymp; 2.24.</p>
           <p>A player is counted as the closest named strategy if that distance is under 0.5, and as mixed otherwise. For example, (0.9, 1, 0.1, 0.2, 0) is 0.24 from grim trigger and 0.81 from TFT, so it counts as grim.</p>
-          <p>When the same game continues, p0 only opened the very first round, so it is left out: strategies are compared on pCC, pCD, pDC and pDD alone (distance at most 2).</p>
+          </div>
+          <div data-history="carry" hidden>
+          <p>When the same game continues, p0 only opened the very first round, so a strategy is compared on its four responses (pCC, pCD, pDC, pDD): a point in a four-dimensional box. Each named strategy is a corner of that box:</p>
+          <ul>
+            <li>ALLC (1, 1, 1, 1): always cooperates</li>
+            <li>ALLD (0, 0, 0, 0): always defects</li>
+            <li>TFT (1, 0, 1, 0): copies the partner's last move</li>
+            <li>grim trigger (1, 0, 0, 0): cooperates only after mutual cooperation, so once anyone defects it defects for good</li>
+            <li>WSLS (1, 0, 0, 1): repeats its move after a good outcome (CC, DC), switches after a bad one (CD, DD)</li>
+          </ul>
+          <p>The distance between a player's responses p and a named strategy's q is the usual straight-line distance, &radic;((pCC&minus;qCC)&sup2; + &hellip; + (pDD&minus;qDD)&sup2;). It is 0 for an exact match and at most 2.</p>
+          <p>A player is counted as the closest named strategy if that distance is under 0.5, and as mixed otherwise. For example, responses (1, 0.1, 0.2, 0) are 0.22 from grim trigger and 0.81 from TFT, so they count as grim. A player that answers exactly like TFT counts as TFT whatever its p0.</p>
+          </div>
         </details>
       </section>
       <section class="panel" aria-labelledby="h-coop">
@@ -836,10 +849,14 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
   function readAll(opts = {}) {
     const before = S.params ? JSON.stringify(S.params) : null;
     sim.configure(controlParams());
-    syncGame();
+    syncGame(); syncHistoryText();
     if (!runStart || before === null || JSON.stringify(S.params) === before) return;
     if (S.gen === 0) { restart(); return; }
     runEdits.push({ gen: S.gen, params: clone(S.params), replayGames: !!opts.replayGames, learnersPlaced: !!opts.learnersPlaced });
+  }
+  // texts that differ between a new game each generation and a continuing game
+  function syncHistoryText() {
+    document.querySelectorAll("[data-history]").forEach((el) => { el.hidden = el.dataset.history !== S.params.history; });
   }
   function drawChips() {
     const { T, R, P } = S, Sv = S.Sp;

@@ -31,7 +31,8 @@
   //    each pair's long-run (stationary) play instead of a fresh 100-round game
   // 5: in carry mode p0 is used only in the first round, so strategies are classified on the four
   //    response entries and learners no longer perturb p0
-  const MODEL_VERSION = "5";
+  // 6: logs "cc", the share of pair rounds that end in mutual cooperation (PD; measurement only)
+  const MODEL_VERSION = "6";
 
   // Parameters of one run. Every run file records the full set, after validation.
   const DEFAULTS = Object.freeze({
@@ -370,6 +371,7 @@
       const sampled = S.mode === "sampled";
       const carry = edgeState(again), E = carry ? S.edge : null, SE = carry ? S.selfEdge : null, w = sampled ? 1 : 4;
       pay.fill(0); coop.fill(0);
+      let cc = 0, pairs = 0;
       for (let i = 0; i < N; i++) {
         const a = i * 5;
         for (let h = 0; h < halfK; h++) {
@@ -379,6 +381,7 @@
           pay[j] += F[0] * R + F[1] * T + F[2] * Sv + F[3] * P;
           coop[i] += F[0] + F[1];
           coop[j] += F[0] + F[2];
+          cc += F[0]; pairs += 1;
         }
         if (S.self) {
           if (sampled) pairSampled(X, a, a, m, S.rng, MAP_PD, MAP_PD, SE, i * w); else pairExpected(X, a, a, m, MAP_PD, MAP_PD, SE, i * w);
@@ -387,6 +390,7 @@
         }
       }
       if (carry) S.edgeReady = true;
+      S.ccShare = pairs ? cc / pairs : 0;
       classify();
     }
 
@@ -466,6 +470,7 @@
         for (let q = 0; q < 5; q++) mean[q] += X[i * 5 + q];
       }
       const out = { coop: c / (N * kk), pay: p / (N * kk), mean: mean.map((v) => v / N), cls: counts.map((v) => v / N) };
+      if (G.id === "pd") out.cc = S.ccShare; // share of neighbour-pair rounds that are mutual cooperation
       if (G.id === "mp") {
         let ss = 0;
         for (let i = 0; i < N; i++) { const d = pay[i] / kk - out.pay; ss += d * d; }
@@ -636,7 +641,7 @@
     function measure() {
       const s = S.last;
       const r = { gen: S.gen, coop: s.coop, pay: s.pay, mean: s.mean.slice(), cls: s.cls.slice(), distinct: distinctCount() };
-      if (G.id === "pd") Object.assign(r, { wmCoop: s.wmCoop, wmPay: s.wmPay, mmCoop: s.mmCoop, mmPay: s.mmPay });
+      if (G.id === "pd") Object.assign(r, { cc: s.cc, wmCoop: s.wmCoop, wmPay: s.wmPay, mmCoop: s.mmCoop, mmPay: s.mmPay });
       else Object.assign(r, { spread: s.spread, expl: s.expl });
       if (LR.list.length) Object.assign(r, {
         lPay: s.lPay, lCoop: s.lCoop, lVec: s.lVec.slice(), lCls: s.lCls.slice(),
@@ -662,7 +667,7 @@
   function buildRun({ params, generations, logEvery, records, survivors, classes, components, meta }) {
     const col = (k) => records.map((r) => (r[k] === undefined ? null : r[k]));
     const series = { gen: col("gen"), coop: col("coop"), pay: col("pay"), distinct: col("distinct") };
-    for (const k of ["wmCoop", "wmPay", "mmCoop", "mmPay", "spread", "expl", "lPay", "lCoop", "lAccepted", "lTrials"]) {
+    for (const k of ["cc", "wmCoop", "wmPay", "mmCoop", "mmPay", "spread", "expl", "lPay", "lCoop", "lAccepted", "lTrials"]) {
       if (records.some((r) => r[k] !== undefined)) series[k] = col(k);
     }
     series.mean = Object.fromEntries(components.map((c, q) => [c, records.map((r) => r.mean[q])]));
