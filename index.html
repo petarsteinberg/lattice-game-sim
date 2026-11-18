@@ -69,6 +69,10 @@ header.top h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0
 header.top p { margin: 2px 0 0; color: var(--muted); max-width: 70ch; }
 .status { font-family: var(--font-data); font-size: 12.5px; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
 .status b { color: var(--ink); font-weight: 500; }
+.conv { display: inline-flex; align-items: baseline; gap: 5px; cursor: help; }
+.conv-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); align-self: center; }
+.conv[data-state="weak"] .conv-dot { background: var(--c-wsls); }
+.conv[data-state="strong"] .conv-dot { background: var(--ok); }
 header.top { position: relative; padding-right: 48px; }
 .top-right { display: flex; align-items: center; }
 .theme-btn {
@@ -182,6 +186,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
       <span><span id="st-a-label">C moves</span> <b id="st-coop">-</b></span>
       <span><span id="st-b-label">payoff</span> <b id="st-pay">-</b></span>
       <span><b id="st-ms">-</b> ms / step</span>
+      <span class="conv" id="st-conv" data-state="">convergence <i class="conv-dot" aria-hidden="true"></i><b id="st-conv-v">-</b></span>
     </div>
     <button type="button" class="theme-btn" id="btn-theme" title="Switch to dark theme" aria-label="Switch to dark theme">
       <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
@@ -677,9 +682,40 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
       $("st-pay").textContent = S.last ? S.last.pay.toFixed(2) : "-";
     }
     $("st-ms").textContent = S.lastMs ? S.lastMs.toFixed(1) : "-";
-    $("st-distinct").textContent = sim.distinctCount().toLocaleString("en-US");
+    const distinct = sim.distinctCount();
+    $("st-distinct").textContent = distinct.toLocaleString("en-US");
+    drawConvergence(distinct);
     $("st-players").textContent = S.N.toLocaleString("en-US");
     drawLearnerReadout();
+  }
+
+  // Convergence of the lattice: strong = one vector; weak = several vectors, all closest to the same
+  // named strategy; none = more than one named strategy, or players that are not near any ("mixed").
+  function drawConvergence(distinct) {
+    const el = $("st-conv");
+    if (!S.last) { el.dataset.state = ""; $("st-conv-v").textContent = "-"; el.title = ""; return; }
+    const present = [];
+    S.last.cls.forEach((x, c) => { if (x > 0) present.push(c); });
+    const names = present.map((c) => (c === sim.MIXED ? "mixed" : sim.NAMED[c].name));
+    let state, title;
+    if (distinct === 1) {
+      state = "strong";
+      title = "Strong: every player holds the same vector." + (LR.list.length
+        ? " Learners keep trying new vectors, so this can end."
+        : (S.params.mode === "expected" ? " Nothing can change from here: every global measure is now fixed."
+          : " The lattice can no longer change; with sampled moves the measures still fluctuate."));
+    } else if (present.length === 1 && present[0] !== sim.MIXED) {
+      state = "weak";
+      title = `Weak: ${distinct.toLocaleString("en-US")} different vectors, all closest to ${names[0]}.`;
+    } else {
+      state = "none";
+      title = present.length === 1
+        ? `None: no player is near a named strategy (${distinct.toLocaleString("en-US")} different vectors, all mixed).`
+        : `None: ${present.length} kinds present (${names.join(", ")}).`;
+    }
+    el.dataset.state = state;
+    $("st-conv-v").textContent = state;
+    el.title = title + "\n\nStrong: one vector. Weak: several vectors, all closest to the same named strategy. None: anything else.";
   }
 
   function drawLearnerReadout() {
