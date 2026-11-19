@@ -32,7 +32,9 @@
   // 5: in carry mode p0 is used only in the first round, so strategies are classified on the four
   //    response entries and learners no longer perturb p0
   // 6: logs "cc", the share of pair rounds that end in mutual cooperation (PD; measurement only)
-  const MODEL_VERSION = "6";
+  // 7: learners (called mutators on the page) can be "keen" (test a change for W generations and keep
+  //    it only if it earned more; the behaviour so far) or not (switch to a nudged vector every W)
+  const MODEL_VERSION = "7";
 
   // Parameters of one run. Every run file records the full set, after validation.
   const DEFAULTS = Object.freeze({
@@ -48,7 +50,7 @@
     selfInteraction: false,     // PD only
     mode: "expected",           // "expected" (exact) or "sampled"
     seed: 1,
-    learner: Object.freeze({ count: 0, W: 3, sigma: 0.1, copyable: true }), // count: learners at random sites
+    learner: Object.freeze({ count: 0, W: 3, sigma: 0.1, copyable: true, keen: true }), // count: learners at random sites
   });
 
   function createSim(params) {
@@ -189,7 +191,7 @@
     // the window before it. Each learner has its own random stream, and the sites come from a
     // separate stream, so adding learners does not change the imitators' random draws.
     const LR = {
-      count: 0, copyable: true, W: 5, sigma: 0.1,
+      count: 0, copyable: true, W: 5, sigma: 0.1, keen: true,
       list: [],          // one state object per learner
       isLearner: null,   // Uint8Array(N): 1 at learner sites
       get on() { return this.count > 0; },
@@ -225,12 +227,25 @@
     function learnerApply() {
       for (const l of LR.list) S.X.set(l.phase === "trial" ? l.trial : l.kept, l.site * 5);
     }
+    // A nudged copy of v: each probability moves by a normal step of size sigma, kept in [0, 1]. In a
+    // continuing game p0 is never played again, so it is left as it is.
+    function nudge(l, from, to) {
+      const q0 = S.history === "carry" ? 1 : 0;
+      if (q0) to[0] = from[0];
+      for (let q = q0; q < 5; q++) to[q] = Math.min(1, Math.max(0, from[q] + LR.sigma * gauss(l.rng)));
+    }
     function learnerObserve() {
       const kk = partners();
       for (const l of LR.list) {
         l.sum += S.pay[l.site] / kk;
         l.t += 1;
         if (l.t < LR.W) continue;
+        if (!LR.keen) { // not keen: switch to a nudged vector every W generations, untested
+          l.keptScore = l.sum / l.t; l.t = 0; l.sum = 0;
+          nudge(l, l.kept, l.trial); l.kept.set(l.trial);
+          l.trials += 1; l.accepted += 1; l.phase = "measure";
+          continue;
+        }
         const avg = l.sum / l.t;
         if (l.phase === "measure") {
           l.keptScore = avg; l.keptFresh = true;
@@ -241,10 +256,7 @@
         }
         l.t = 0; l.sum = 0;
         if (l.keptFresh) {
-          // in a continuing game p0 is never played again, so trials leave it as it is
-          const q0 = S.history === "carry" ? 1 : 0;
-          if (q0) l.trial[0] = l.kept[0];
-          for (let q = q0; q < 5; q++) l.trial[q] = Math.min(1, Math.max(0, l.kept[q] + LR.sigma * gauss(l.rng)));
+          nudge(l, l.kept, l.trial);
           l.phase = "trial";
         } else l.phase = "measure";
       }
@@ -600,10 +612,11 @@
       S.seed = Math.max(0, Math.round(num(q.seed, 1)));
       LR.count = Math.max(0, Math.round(num(q.learner.count, 0))); LR.copyable = !!q.learner.copyable;
       LR.W = Math.max(1, Math.round(num(q.learner.W, DEFAULTS.learner.W))); LR.sigma = Math.max(0, num(q.learner.sigma, 0.1));
+      LR.keen = q.learner.keen !== false;
       S.params = {
         game: S.game, T: S.T, R: S.R, P: S.P, S: S.Sp, stake: S.stake, L: S.L, radius: S.r, K: S.K,
         rounds: S.m, history: S.history, selfInteraction: S.self, mode: S.mode, seed: S.seed,
-        learner: { count: LR.count, W: LR.W, sigma: LR.sigma, copyable: LR.copyable },
+        learner: { count: LR.count, W: LR.W, sigma: LR.sigma, copyable: LR.copyable, keen: LR.keen },
       };
       return S.params;
     }
@@ -695,6 +708,7 @@
     q.set("self", p.selfInteraction ? "1" : "0");
     q.set("learners", String(p.learner.count));
     q.set("W", String(p.learner.W)); q.set("sigma", String(p.learner.sigma)); q.set("copyable", p.learner.copyable ? "1" : "0");
+    q.set("keen", p.learner.keen === false ? "0" : "1");
     if (gen !== undefined) q.set("gen", String(gen));
     return q.toString();
   }

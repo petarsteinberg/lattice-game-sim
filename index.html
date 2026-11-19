@@ -179,7 +179,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
   <header class="top">
     <div>
       <h1>Lattice Game Sim</h1>
-      <p>Every player starts with a random memory-one strategy, plays a repeated game with each of its neighbours, and copies better-scoring neighbours with the Fermi rule.</p>
+      <p>Every player starts with a random memory-one strategy, plays an iterated game with each of its neighbours, and copies better-scoring neighbours with the Fermi rule.</p>
     </div>
     <div class="top-right">
     <div class="status" aria-live="polite">
@@ -227,7 +227,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     <section class="group" aria-labelledby="g-lat">
       <h2 id="g-lat">Lattice</h2>
       <div class="row"><label for="L">Size</label>
-        <select id="L"><option value="20">20 x 20</option><option value="30">30 x 30</option><option value="50">50 x 50</option><option value="80">80 x 80</option><option value="100" selected>100 x 100</option><option value="150">150 x 150</option><option value="200">200 x 200</option><option value="300">300 x 300</option></select></div>
+        <select id="L"><option value="20">20 x 20</option><option value="30">30 x 30</option><option value="50">50 x 50</option><option value="80">80 x 80</option><option value="100" selected>100 x 100</option><option value="150">150 x 150</option><option value="200">200 x 200</option><option value="300">300 x 300</option><option value="400">400 x 400</option></select></div>
       <div class="stack"><label for="radius">Neighbour radius</label>
         <select id="radius">
           <option value="1">1 (4 neighbours)</option>
@@ -237,14 +237,13 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
           <option value="2.8284271247461903">&radic;8 (24 neighbours)</option>
           <option value="3">3 (28 neighbours)</option>
         </select></div>
-      <p class="hint">Neighbours are the sites within this distance, wrapping around the edges. Changing size or radius restarts the run.</p>
+      <p class="hint">Neighbours are the sites within this distance, wrapping around the edges.</p>
     </section>
 
     <section class="group" aria-labelledby="g-game">
       <h2 id="g-game">Game dynamics</h2>
       <div class="stack"><label for="game">Type</label>
         <select id="game"><option value="pd" selected>Prisoner's Dilemma</option><option value="mp">Matching pennies</option></select></div>
-      <p class="hint">Changing the type restarts the run.</p>
       <div data-game="pd" class="stack">
         <div class="payoffs">
           <label for="T"><span><b>T</b> tempt</span><input id="T" type="number" step="0.1" value="5"></label>
@@ -264,10 +263,10 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
         <p class="hint" style="margin:0">Each round both players show Heads or Tails. The matcher wins the stake if the coins match, the mismatcher wins it if they differ. Zero-sum: one player's gain is the other's loss.</p>
         <p class="hint" style="margin:0">Every pair of neighbours plays twice, once with each as the matcher, so everyone holds one strategy and can copy anyone.</p>
       </div>
-      <div class="row"><label for="rounds">Rounds per generation</label><input id="rounds" type="number" min="1" max="200" step="1" value="3"></div>
+      <div class="row"><label for="rounds">Rounds per generation</label><input id="rounds" type="number" min="1" max="200" step="1" value="1"></div>
       <div class="row"><label for="history">Between generations</label>
-        <select id="history"><option value="reset" selected>New game each time</option><option value="carry">Same game continues</option></select></div>
-      <p class="hint">New game: every generation each pair plays a fresh game that opens with p0. Same game: each pair's game never restarts, so the next round answers the last outcome, whoever holds the vector now; p0 is used only in the very first round.</p>
+        <select id="history"><option value="carry" selected>Continue game</option><option value="reset">Repeat game</option></select></div>
+      <p class="hint">Continue: each pair's game carries on, so the next round answers the last one; p0 is used only in the very first round. Repeat: each generation starts a new game, opened with p0.</p>
       <div class="check"><input id="selfint" type="checkbox"><label for="selfint">Play against yourself too</label></div>
       <p class="hint" data-game="mp" hidden>Not used in matching pennies: playing yourself in both roles always nets 0.</p>
       <div class="row"><label for="mode">Game outcome</label>
@@ -277,35 +276,35 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
 
     <section class="group" aria-labelledby="g-dyn">
       <h2 id="g-dyn">Imitator settings</h2>
-      <div class="row"><label for="K">Fermi temperature K</label><input id="K" type="number" min="0" step="0.01" value="0.05"></div>
-      <input id="K-range" type="range" min="0" max="3" step="0.01" value="0.05" aria-label="Fermi temperature K">
+      <div class="row"><label for="K">Fermi temperature K</label><input id="K" type="number" min="0" step="0.01" value="0"></div>
+      <input id="K-range" type="range" min="0" max="3" step="0.01" value="0" aria-label="Fermi temperature K">
       <p class="hint">Copy probability is 1 / (1 + e<sup>&minus;&Delta;/K</sup>), where &Delta; is the neighbour's total payoff minus your own. K = 0 means copy only if strictly better.</p>
     </section>
 
     <section class="group" aria-labelledby="g-learn">
-      <h2 id="g-learn">Learner settings</h2>
-      <div class="row"><label for="nlearners">Number of learners</label><input id="nlearners" type="number" min="0" max="5000" step="1" value="0"></div>
+      <h2 id="g-learn">Mutator settings</h2>
+      <div class="row"><label for="nlearners">Number of mutators</label><input id="nlearners" type="number" min="0" max="5000" step="1" value="0"></div>
       <p class="hint">Placed at random sites (set by the seed); shown in black or white when colouring by nearest named strategy.</p>
       <div class="row"><label for="W">Window W (generations)</label><input id="W" type="number" min="1" max="200" step="1" value="3"></div>
-      <div class="row"><label for="sigma">Trial step size &sigma;</label><input id="sigma" type="number" min="0.01" max="0.5" step="0.01" value="0.1"></div>
-      <div class="check"><input id="copyable" type="checkbox" checked><label for="copyable">Imitators can copy learners</label></div>
+      <div class="row"><label for="sigma">Step size &sigma;</label><input id="sigma" type="number" min="0.01" max="0.5" step="0.01" value="0.1"></div>
+      <div class="check"><input id="keen" type="checkbox" checked><label for="keen">Keen: test each change, keep it only if it pays</label></div>
+      <div class="check"><input id="copyable" type="checkbox" checked><label for="copyable">Imitators can copy mutators</label></div>
       <div class="readout" id="learner-readout" aria-live="polite"></div>
       <details class="explain">
-        <summary>How the learners learn</summary>
-        <p>A learner never imitates. It plays its kept vector for W generations, then tries a copy with each probability nudged by a random amount (standard deviation &sigma;) for the next W. If the trial earned more, it keeps it; otherwise it reverts. With the same game continuing and 1 round per generation, W counts rounds.</p>
+        <summary>How mutators change</summary>
+        <p>A mutator never imitates. Every W generations it makes a new vector by nudging each probability by a random amount (standard deviation &sigma;). A keen mutator plays the new vector for W generations and keeps it only if it earned more than the old one, otherwise it goes back. A mutator that is not keen simply switches to it. In a continued game p0 is never changed, and with 1 round per generation W counts rounds.</p>
       </details>
     </section>
 
     <details class="how group">
       <summary>What happens in one generation</summary>
       <ol>
-        <li data-game="pd">Each player holds five probabilities of cooperating: p0 in the first round, then pCC, pCD, pDC, pDD after each outcome (own move first).</li>
-        <li data-game="mp" hidden>Each player holds five probabilities of playing Heads: p0 in the first round, then pHW, pHL, pTW, pTL after playing Heads and winning, Heads and losing, Tails and winning, Tails and losing. Stated by win or loss, they mean the same in either role.</li>
-        <li data-game="pd">Every pair of neighbours plays the set number of rounds. Each player's score for the generation is its average payoff per round in each of those games, added up over all its partners. With "same game continues", the rounds pick up where the pair's last round left off instead of starting a new game, so with 1 round per generation the score is that single round's payoff.</li>
-        <li data-game="mp" hidden>Every pair of neighbours plays the set number of rounds twice, once with each player as the matcher. A player's score from a pair is its average payoff per round over the two games; its score for the generation adds these up over all its partners.</li>
-        <li>Every player then picks one neighbour at random and compares the two scores. It copies that neighbour's whole vector with the Fermi probability, which grows with how much higher the neighbour scored. All players update at once.</li>
-        <li>Scores have no memory. They come only from the rounds played in this generation and are thrown away afterwards, so a strategy that did well in earlier generations gets no credit for it. A copied vector starts the next generation with a fresh score. (The game itself has memory when it continues: a copied vector answers the last outcome its new owner had with each partner.)</li>
-        <li>Learners, if there are any, skip the copying step. Each plays its own vector and changes it only by trial and keep (see Learner settings).</li>
+        <li data-game="pd">Each player holds five probabilities of cooperating: p0 for the first round, then pCC, pCD, pDC, pDD after each outcome (own move first).</li>
+        <li data-game="mp" hidden>Each player holds five probabilities of playing Heads: p0 for the first round, then pHW, pHL, pTW, pTL after playing Heads or Tails and winning or losing.</li>
+        <li data-game="pd">Every pair of neighbours plays the set number of rounds, picking up where it left off in a continued game. A player's score is its average payoff per round, added up over its partners.</li>
+        <li data-game="mp" hidden>Every pair of neighbours plays the set number of rounds twice, once with each as the matcher. A player's score is its average payoff per round, added up over its partners.</li>
+        <li>Each player compares its score with a random neighbour's and copies that neighbour's whole vector with the Fermi probability. All players update at once; scores start afresh every generation.</li>
+        <li>Mutators never copy; they change their own vector (see Mutator settings).</li>
         <li>Generation 0 is a lattice of uniformly random vectors drawn from the seed.</li>
       </ol>
     </details>
@@ -363,7 +362,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
           <p>A player is counted as the closest named strategy if that distance is under 0.5, and as mixed otherwise. For example, (0.9, 1, 0.1, 0.2, 0) is 0.24 from grim trigger and 0.81 from TFT, so it counts as grim.</p>
           </div>
           <div data-history="carry" hidden>
-          <p>When the same game continues, p0 only opened the very first round, so a strategy is compared on its four responses (pCC, pCD, pDC, pDD): a point in a four-dimensional box. Each named strategy is a corner of that box:</p>
+          <p>In a continued game, p0 only opened the very first round, so a strategy is compared on its four responses (pCC, pCD, pDC, pDD): a point in a four-dimensional box. Each named strategy is a corner of that box:</p>
           <ul>
             <li>ALLC (1, 1, 1, 1): always cooperates</li>
             <li>ALLD (0, 0, 0, 0): always defects</li>
@@ -376,6 +375,13 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
           </div>
         </details>
       </section>
+      <section class="panel" aria-labelledby="h-vec">
+        <div class="panel-head"><h3 id="h-vec">The strategy vector</h3>
+          <span class="vec-count" title="Players whose five probabilities are exactly identical hold the same vector">unique vectors <b id="st-distinct">-</b> of <span id="st-players">-</span> players</span></div>
+        <p class="chart-sub" data-game="pd">Population mean over time (left) and distribution now (right). In a continued game, p0 is greyed out: it opened the first round only.</p>
+        <p class="chart-sub" data-game="mp" hidden>Probability of Heads: population mean over time (left) and distribution now (right). The midline 0.5 is the unexploitable value.</p>
+        <canvas class="chart tall" id="ch-vec"></canvas>
+      </section>
       <section class="panel" aria-labelledby="h-coop">
         <div class="panel-head"><h3 id="h-coop"><span data-game="pd">Cooperation</span><span data-game="mp" hidden>Payoff spread</span></h3></div>
         <p class="chart-sub" data-game="pd">Share of all moves that are C</p>
@@ -386,8 +392,8 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
           <summary>What payoff spread and exploitability show</summary>
           <p>Matching pennies is zero-sum, so the mean payoff is always exactly 0. What changes is who wins.</p>
           <p><b>Payoff spread</b> is the standard deviation of players' payoffs. It is 0 when every pairing is even, and grows when some players beat their neighbours at others' expense.</p>
-          <p><b>Exploitability</b> is what the best possible opponent would earn per round against a player using the population's mean vector, in both roles and over the set number of rounds. It is computed exactly, round by round, and is 0 only for 50/50 random play. The learner's payoff, when it is switched on, is a live estimate of how exploitable its actual neighbours are.</p>
-          <p>Without mutation, imitation eventually leaves one vector, which earns 0 against itself, so the end state always looks calm in spread. Exploitability, or the learner, shows whether that survivor could be beaten.</p>
+          <p><b>Exploitability</b> is what the best possible opponent would earn per round against a player using the population's mean vector, in both roles and over the set number of rounds. It is computed exactly, round by round, and is 0 only for 50/50 random play. The mutators' payoff, when there are any, is a live estimate of how exploitable their actual neighbours are.</p>
+          <p>Without mutation, imitation eventually leaves one vector, which earns 0 against itself, so the end state always looks calm in spread. Exploitability, or the mutators, show whether that survivor could be beaten.</p>
         </details>
         <details class="explain" data-game="pd">
           <summary>What the reference lines show</summary>
@@ -395,7 +401,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
           <p><b>Well-mixed</b> takes the same players but pairs each with randomly chosen players from anywhere on the lattice, ignoring who sits next to whom. It is estimated each generation from 5,000 random pairs.</p>
           <p><b>Mean vs mean</b> is a single player using the population's average vector (the mean of each of the five probabilities) playing against itself, computed exactly.</p>
           <p>The gaps separate two effects. Lattice above well-mixed is <em>clustering</em>: neighbours are more alike than random pairs, so cooperators meet cooperators more often. A gap between well-mixed and mean vs mean is <em>diversity</em>: payoff is not linear in the vector, so the average strategy is a poor stand-in for the actual mix, and it may describe nobody (half TFT and half ALLD averages to 0.5, 0.5, 0, 0.5, 0). Without mutation, imitation eventually leaves one vector, and then all three lines meet.</p>
-          <p>Both reference lines use the expected game outcome, also when the lattice uses sampled moves. When the same game continues, games never end, so both lines use each pair's long-run play: the share of each outcome once the game has gone on long enough to forget how it started (computed exactly). Once a single vector holds the lattice, the lattice's own cooperation settles onto both lines.</p>
+          <p>Both reference lines use the expected game outcome, also when the lattice uses sampled moves. In a continued game, games never end, so both lines use each pair's long-run play: the share of each outcome once the game has gone on long enough to forget how it started (computed exactly). Once a single vector holds the lattice, the lattice's own cooperation settles onto both lines.</p>
         </details>
       </section>
       <section class="panel" aria-labelledby="h-pay">
@@ -404,13 +410,6 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
         <p class="chart-sub" data-game="mp" hidden>Best possible opponent's payoff per round against the population's mean vector; 0 only at 50/50 random</p>
         <canvas class="chart" id="ch-pay"></canvas>
         <div class="legend" id="legend-pay"></div>
-      </section>
-      <section class="panel" aria-labelledby="h-vec">
-        <div class="panel-head"><h3 id="h-vec">The strategy vector</h3>
-          <span class="vec-count" title="Players whose five probabilities are exactly identical hold the same vector">unique vectors <b id="st-distinct">-</b> of <span id="st-players">-</span> players</span></div>
-        <p class="chart-sub" data-game="pd">Population mean over time (left) and distribution now (right). When the same game continues, p0 is greyed out: it opened the first round only.</p>
-        <p class="chart-sub" data-game="mp" hidden>Probability of Heads: population mean over time (left) and distribution now (right). The midline 0.5 is the unexploitable value.</p>
-        <canvas class="chart tall" id="ch-vec"></canvas>
       </section>
     </div>
   </main>
@@ -503,7 +502,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
   function drawLegend() {
     drawLatticeLegend();
     if (LR.on && $("colorby").value === "class") $("legend").insertAdjacentHTML("beforeend",
-      `<span><span class="sw" style="background:${palette.learner}"></span>learner</span>`);
+      `<span><span class="sw" style="background:${palette.learner}"></span>mutator</span>`);
   }
   function drawLatticeLegend() {
     const mode = $("colorby").value, el = $("legend");
@@ -722,7 +721,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     if (distinct === 1) {
       state = "strong";
       title = "Strong: every player holds the same vector." + (LR.list.length
-        ? " Learners keep trying new vectors, so this can end."
+        ? " Mutators keep trying new vectors, so this can end."
         : S.params.history === "carry" ? " The vectors can no longer change, but the continuing games still settle towards their long-run pattern."
         : (S.params.mode === "expected" ? " Nothing can change from here: every global measure is now fixed."
           : " The lattice can no longer change; with sampled moves the measures still fluctuate."));
@@ -743,12 +742,12 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
   function drawLearnerReadout() {
     const el = $("learner-readout");
     const n = LR.list.length;
-    if (!n) { el.innerHTML = "<span>No learners: every player imitates.</span>"; return; }
+    if (!n) { el.innerHTML = "<span>No mutators: every player imitates.</span>"; return; }
     const counts = new Array(MIXED + 1).fill(0);
     for (const l of LR.list) counts[S.cls[l.site]]++;
     const names = NAMED.map((x) => x.name).concat(["mixed"]);
     const parts = counts.map((c, i) => [c, i]).filter(([c]) => c);
-    el.innerHTML = `<span>What the ${n} learner${n > 1 ? "s are" : " is"} playing now</span>` +
+    el.innerHTML = `<span>What the ${n} mutator${n > 1 ? "s are" : " is"} playing now</span>` +
       `<div class="mixbar" role="img" aria-label="${parts.map(([c, i]) => `${names[i]} ${c}`).join(", ")}">` +
       parts.map(([c, i]) => `<span style="width:${(100 * c) / n}%;background:${palette.hex.cls[i]}" title="${names[i]}: ${c}"></span>`).join("") +
       `</div><div class="legend" style="margin-top:2px">` +
@@ -780,11 +779,11 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     const i = y * S.L + x, kk = partners(), c = S.cls[i];
     const [r, dist] = nearest(S.X, i);
     const lrn = LR.on && LR.isLearner && LR.isLearner[i] ? LR.list.find((l) => l.site === i) : null, isL = !!lrn;
-    const name = (isL ? (lrn.phase === "trial" ? "A learner, playing a trial vector. " : "A learner, playing its kept vector. ") : "") +
+    const name = (isL ? (!LR.keen ? "A mutator (not keen). " : lrn.phase === "trial" ? "A keen mutator, testing a new vector. " : "A keen mutator, playing its kept vector. ") : "") +
       (r < 0 ? "Mixed (no named strategy within 0.5)" : `Nearest ${REFS[r].name} (distance ${dist.toFixed(2)})`);
     const sw = isL && $("colorby").value === "class" ? palette.learner : palette.hex.cls[c];
     showTip(hv.cx, hv.cy,
-      `<div class="t-head"><span class="sw" style="background:${sw}"></span>${isL ? "Learner" : "Player"} (${y}, ${x})</div><div style="font-family:var(--font-ui);margin-bottom:4px">${name}</div>` +
+      `<div class="t-head"><span class="sw" style="background:${sw}"></span>${isL ? "Mutator" : "Player"} (${y}, ${x})</div><div style="font-family:var(--font-ui);margin-bottom:4px">${name}</div>` +
       COMP.map((n, q) => `<div>${n.padEnd(4, " ")} ${fmt(S.X[i * 5 + q])}</div>`).join("") +
       `<div style="margin-top:4px">payoff ${fmt(S.pay[i] / kk)} per partner per round</div>` +
       `<div>${G.rateWord} ${(100 * S.coop[i] / kk).toFixed(0)}%</div>`);
@@ -840,7 +839,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
       game: $("game").value, T: num("T", 5), R: num("R", 3), P: num("P", 1), S: num("S", 0), stake: num("stake", 1),
       L: Number($("L").value), radius: Number($("radius").value), K: num("K", 0.2), rounds: num("rounds", 3),
       history: $("history").value, selfInteraction: $("selfint").checked, mode: $("mode").value, seed: num("seed", 1),
-      learner: { count: num("nlearners", 0), W: num("W", 3), sigma: num("sigma", 0.1), copyable: $("copyable").checked },
+      learner: { count: num("nlearners", 0), W: num("W", 3), sigma: num("sigma", 0.1), copyable: $("copyable").checked, keen: $("keen").checked },
     };
   }
   // Apply the controls. Before the first step a change simply restarts the run with the new
@@ -854,7 +853,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     if (S.gen === 0) { restart(); return; }
     runEdits.push({ gen: S.gen, params: clone(S.params), replayGames: !!opts.replayGames, learnersPlaced: !!opts.learnersPlaced });
   }
-  // texts that differ between a new game each generation and a continuing game
+  // texts that differ between a repeated game (new each generation) and a continued game
   function syncHistoryText() {
     document.querySelectorAll("[data-history]").forEach((el) => { el.hidden = el.dataset.history !== S.params.history; });
   }
@@ -919,6 +918,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
   });
   ["W", "sigma"].forEach((id) => $(id).addEventListener("input", () => { readAll(); drawLearnerReadout(); }));
   $("copyable").addEventListener("change", () => { readAll(); });
+  $("keen").addEventListener("change", () => { readAll(); drawLearnerReadout(); render(); });
 
   const reTheme = () => { readPalette(); drawLegend(); drawMixLegend(); render(); };
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", reTheme);
@@ -961,7 +961,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     set("selfint", p.selfInteraction);
     ensureOption("L", p.L, `${p.L} x ${p.L}`);
     ensureOption("radius", p.radius, `${Number(p.radius).toFixed(3)}`);
-    set("nlearners", p.learner.count ?? (p.learner.on ? 1 : 0)); set("W", p.learner.W); set("sigma", p.learner.sigma); set("copyable", p.learner.copyable);
+    set("nlearners", p.learner.count ?? (p.learner.on ? 1 : 0)); set("W", p.learner.W); set("sigma", p.learner.sigma); set("copyable", p.learner.copyable); set("keen", p.learner.keen !== false);
   }
   // Run from generation 0 to gen with these parameters, repeating any recorded edits.
   function replay(params, gen, edits = []) {
@@ -1089,6 +1089,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     if (q.has("W")) p.learner.W = n("W");
     if (q.has("sigma")) p.learner.sigma = n("sigma");
     if (q.has("copyable")) p.learner.copyable = b("copyable");
+    if (q.has("keen")) p.learner.keen = b("keen");
     return { params: p, gen: Math.max(0, Math.round(n("gen") || 0)) };
   }
 
