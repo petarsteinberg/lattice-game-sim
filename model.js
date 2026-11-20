@@ -34,7 +34,10 @@
   // 6: logs "cc", the share of pair rounds that end in mutual cooperation (PD; measurement only)
   // 7: learners (called mutators on the page) can be "keen" (test a change for W generations and keep
   //    it only if it earned more; the behaviour so far) or not (switch to a nudged vector every W)
-  const MODEL_VERSION = "7";
+  // 8: PD has a sixth named class, "banter" (0.5, 0.5, 0, 1, 0.5): answers like TFT after unequal
+  //    moves but leaves mutual cooperation and mutual defection half the time, so two banter
+  //    players end up taking turns (CD, DC, CD, ...); classification only, the dynamics are unchanged
+  const MODEL_VERSION = "8";
 
   // Parameters of one run. Every run file records the full set, after validation.
   const DEFAULTS = Object.freeze({
@@ -87,12 +90,15 @@
         compLong: ["p0 (first move)", "pCC", "pCD", "pDC", "pDD"],
         // Colour classes. TFT and grim trigger differ only in pDC (forgive a partner who
         // cooperated after being exploited, or never forgive), which matters in continuing games.
+        // Banter is TFT after unequal moves but leaves CC and DD half the time: a pair of banter
+        // players settles into taking turns (CD, DC, ...), each earning (T + S) / 2 a round.
         named: [
           { name: "ALLC", color: "--c-allc" },
           { name: "ALLD", color: "--c-alld" },
           { name: "TFT", color: "--c-tft" },
           { name: "grim", color: "--c-grim" },
           { name: "WSLS", color: "--c-wsls" },
+          { name: "banter", color: "--c-random" },
         ],
         refs: [
           { name: "ALLC", v: [1, 1, 1, 1, 1], cls: 0 },
@@ -100,6 +106,7 @@
           { name: "TFT", v: [1, 1, 0, 1, 0], cls: 2 },
           { name: "grim trigger", v: [1, 1, 0, 0, 0], cls: 3 },
           { name: "WSLS", v: [1, 1, 0, 0, 1], cls: 4 },
+          { name: "banter", v: [0.5, 0.5, 0, 1, 0.5], cls: 5 },
         ],
         dims: [0, 1, 2, 3, 4],
         rateWord: "C moves",
@@ -545,7 +552,9 @@
 
     function record(replaceLast) {
       const s = stats(), h = S.hist, kk = partners(), SERIES = G.series;
-      if (G.id === "pd") Object.assign(s, references(s.mean));
+      // S.lazyRefs (set by the batch runner): compute the reference lines only when a generation is
+      // measured. They use their own random stream, so the run is the same either way.
+      if (G.id === "pd" && !S.lazyRefs) Object.assign(s, references(s.mean));
       // learners: averages over all learners (NaN when there are none)
       const ls = LR.list, nl = ls.length;
       s.lPay = nl ? ls.reduce((a, l) => a + S.pay[l.site], 0) / (nl * kk) : NaN;
@@ -653,6 +662,7 @@
     // The record a run file logs for the current generation.
     function measure() {
       const s = S.last;
+      if (G.id === "pd" && s.wmCoop === undefined) Object.assign(s, references(s.mean));
       const r = { gen: S.gen, coop: s.coop, pay: s.pay, mean: s.mean.slice(), cls: s.cls.slice(), distinct: distinctCount() };
       if (G.id === "pd") Object.assign(r, { cc: s.cc, wmCoop: s.wmCoop, wmPay: s.wmPay, mmCoop: s.mmCoop, mmPay: s.mmPay });
       else Object.assign(r, { spread: s.spread, expl: s.expl });
