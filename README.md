@@ -21,9 +21,16 @@ sites and nudge their own vectors; keen ones keep a change only when it pays.
   well-mixed and mean-vs-mean reference lines, and the strategy vector's components.
 - **Run files:** export a run with every setting and edit you made, and load one to replay it
   exactly.
+- **Experiment designer** (`designer.html`, linked from the simulator): set up a sweep of
+  settings and seeds, run it in the browser on several cores, watch the mean strategy mix and a
+  per-setting summary build up, and download every run file as a zip, plus a summary CSV and the
+  chart. The run files are the same as the command-line runner's in the development repository.
 
-The page is two files, `index.html` and `model.js`, with no build step: download them and open
-`index.html` to run it offline.
+The simulator is two files, `index.html` and `model.js`, with no build step: download them and open
+`index.html` to run it offline. The experiment designer also needs `designer.html`,
+`designer-worker.js` and `runner.js`, and must be served over http (for example
+`python -m http.server` in a folder holding all five files), because browsers do not start
+workers from local files.
 
 This repository only hosts the page. The simulator is developed, tested (including bit-for-bit
 golden runs) and used for batch experiments in a separate repository, and copied here from there;

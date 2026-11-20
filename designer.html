@@ -1,0 +1,956 @@
+<meta charset="utf-8">
+<title>Experiment Designer</title>
+<meta name="lattice-commit" content="9714a931c64695de77ca789b12d0b2bef4e0717b">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: the simulator's instrument panel. The experiment form in a left rail; progress, the live
+   strategy-mix chart and the per-setting table in the main column; one column on a phone. */
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --ink: #15181c;
+  --muted: #5a616b;
+  --faint: #8a919b;
+  --line: #e0e3e8;
+  --grid: #eceef1;
+  --focus: #2a78d6;
+  --ok: #1a7f4b;
+  --bad: #b8322f;
+  --warn: #9a6500;
+  --c-allc: #2a78d6;
+  --c-alld: #e34948;
+  --c-tft: #1baf7a;
+  --c-grim: #9b4dca;
+  --c-wsls: #eda100;
+  --c-other: #c4a684;
+  --c-random: #a3aab4;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111317; --surface: #191c21; --ink: #eceef1; --muted: #a3a9b2; --faint: #7c838d;
+    --line: #2b3037; --grid: #23272d; --focus: #5b9bea; --ok: #4cc28a; --bad: #ef7b78; --warn: #e0a640;
+    --c-allc: #3987e5; --c-alld: #e66767; --c-tft: #199e70; --c-grim: #b57ee0; --c-wsls: #c98500; --c-other: #9b7b58; --c-random: #6c737d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111317; --surface: #191c21; --ink: #eceef1; --muted: #a3a9b2; --faint: #7c838d;
+  --line: #2b3037; --grid: #23272d; --focus: #5b9bea; --ok: #4cc28a; --bad: #ef7b78; --warn: #e0a640;
+  --c-allc: #3987e5; --c-alld: #e66767; --c-tft: #199e70; --c-grim: #b57ee0; --c-wsls: #c98500; --c-other: #9b7b58; --c-random: #6c737d;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 32px;
+}
+.app { max-width: 1500px; margin: 0 auto; display: grid; gap: 16px;
+  grid-template-columns: 330px minmax(0, 1fr); grid-template-areas: "top top" "rail stage"; }
+header.top { grid-area: top; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; position: relative; padding-right: 48px; }
+header.top h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+header.top p { margin: 2px 0 0; color: var(--muted); max-width: 72ch; }
+header.top a { color: var(--focus); }
+.model-id { font: 12.5px var(--font-data); color: var(--muted); font-variant-numeric: tabular-nums; }
+.model-id b { color: var(--ink); font-weight: 500; }
+.theme-btn {
+  width: 32px; height: 32px; padding: 0; display: inline-grid; place-items: center;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); cursor: pointer;
+  position: absolute; top: 0; right: 0;
+}
+.theme-btn:hover { color: var(--ink); }
+.theme-btn svg { width: 16px; height: 16px; }
+.theme-btn .moon { display: none; }
+.theme-btn.is-dark .sun { display: none; }
+.theme-btn.is-dark .moon { display: block; }
+
+aside.rail { grid-area: rail; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+fieldset:disabled .group { opacity: 0.6; }
+.group { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.group h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0; }
+.row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
+.stack { display: flex; flex-direction: column; gap: 6px; }
+.hint { font-size: 12px; color: var(--muted); margin: -4px 0 0; }
+select, input[type="number"], input[type="text"], textarea {
+  font: 13px var(--font-data); color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 8px; min-width: 0;
+}
+input[type="number"] { width: 96px; text-align: right; font-variant-numeric: tabular-nums; }
+input[type="text"] { width: 100%; }
+.row input[type="text"] { width: 150px; }
+textarea { width: 100%; resize: vertical; }
+select:focus-visible, input:focus-visible, button:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.payoffs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.payoffs label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.payoffs input { width: 100%; }
+.check { display: flex; align-items: center; gap: 8px; }
+button {
+  font: 500 13px var(--font-ui); color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 10px; cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--faint); }
+button:disabled { opacity: 0.45; cursor: default; }
+button.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+button.danger { color: var(--bad); }
+button.danger.armed { background: var(--bad); color: var(--surface); border-color: var(--bad); }
+button.small { font-size: 12px; padding: 4px 8px; }
+.sweep-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) auto; gap: 6px; align-items: center; }
+.sweep-row input { width: 100%; }
+.btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.count { font: 12.5px/1.5 var(--font-data); color: var(--ink); font-variant-numeric: tabular-nums; }
+.count.err { color: var(--bad); font-family: var(--font-ui); }
+.json textarea { font: 11px/1.4 var(--font-data); min-height: 220px; }
+.msg { font-size: 12.5px; margin: 0; }
+.msg.err { color: var(--bad); }
+.msg.ok { color: var(--ok); }
+
+main.stage { grid-area: stage; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.panel-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.panel-head h3 { font-size: 13px; font-weight: 600; margin: 0; }
+.panel-head .tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.panel-head .tools label { display: inline-flex; gap: 6px; align-items: center; }
+.panel-head .tools input[type="number"] { width: 80px; }
+.state { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.state i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.state[data-s="running"] { color: var(--ink); } .state[data-s="running"] i { background: var(--focus); }
+.state[data-s="finished"] i { background: var(--ok); }
+.state[data-s="stopped"] i, .state[data-s="failed"] i { background: var(--bad); }
+.bar { height: 8px; border-radius: 4px; background: var(--grid); overflow: hidden; }
+.bar span { display: block; height: 100%; width: 0; background: var(--ink); }
+.stats { display: flex; flex-wrap: wrap; gap: 4px 18px; font: 12.5px var(--font-data); color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats b { color: var(--ink); font-weight: 500; }
+.workers { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.worker { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; font: 11.5px var(--font-data); color: var(--muted); min-width: 0; font-variant-numeric: tabular-nums; }
+.worker .nm { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.worker .bar { height: 4px; }
+.worker .bar span { background: var(--focus); }
+.errors { font: 11.5px var(--font-data); color: var(--bad); white-space: pre-wrap; max-height: 160px; overflow: auto; margin: 0; }
+.chart-wrap { position: relative; }
+#chart { width: 100%; height: 400px; display: block; }
+.readout { font: 12px var(--font-data); color: var(--muted); min-height: 1.5em; font-variant-numeric: tabular-nums; }
+.readout b { color: var(--ink); font-weight: 500; }
+.empty { font-size: 13px; color: var(--muted); margin: 0; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font: 12.5px var(--font-data); font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 5px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child, th.l, td.l { text-align: left; }
+th { font: 600 11px var(--font-ui); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+td small { color: var(--muted); }
+tr.sel td { background: var(--grid); }
+tbody tr { cursor: pointer; }
+.note { font-size: 12.5px; color: var(--muted); margin: 0; max-width: 90ch; }
+
+@media (max-width: 900px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "rail" "stage"; }
+  #chart { height: 320px; }
+}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div>
+      <h1>Experiment designer</h1>
+      <p>Set up an experiment, run every setting and seed in this browser with the same model as the
+        command-line runner, watch the strategy mix build up, and download the run files.
+        <a href="index.html">Open the simulator</a></p>
+    </div>
+    <div class="model-id" id="model-id">model <b>…</b></div>
+    <button type="button" class="theme-btn" id="btn-theme" title="Switch to dark theme" aria-label="Switch to dark theme">
+      <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+      <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+  </header>
+
+  <aside class="rail">
+    <fieldset id="form">
+      <section class="group">
+        <h2>Experiment</h2>
+        <div class="stack">
+          <label for="f-name">Name (folder of the run files)</label>
+          <input type="text" id="f-name" value="carry-r1-L40-mix-example" spellcheck="false">
+        </div>
+        <div class="stack">
+          <label for="f-desc">Description</label>
+          <textarea id="f-desc" rows="3">Example: continued game, 1 round per generation, 40 x 40, 4 neighbours, K = 0, PD (5, 3, 1, 0), expected payoffs, no learners; 20 seeds, up to 5,000 generations. Not a pre-registered study.</textarea>
+        </div>
+      </section>
+
+      <section class="group">
+        <h2>Game</h2>
+        <div class="row"><label for="f-game">Game</label>
+          <select id="f-game"><option value="pd">Prisoner's Dilemma</option><option value="mp">Matching pennies</option></select></div>
+        <div class="payoffs" id="pd-payoffs">
+          <label for="f-T">T<input type="number" id="f-T" value="5" step="any"></label>
+          <label for="f-R">R<input type="number" id="f-R" value="3" step="any"></label>
+          <label for="f-P">P<input type="number" id="f-P" value="1" step="any"></label>
+          <label for="f-S">S<input type="number" id="f-S" value="0" step="any"></label>
+        </div>
+        <div class="row" id="mp-stake" hidden><label for="f-stake">Stake</label><input type="number" id="f-stake" value="1" step="any" min="0.01"></div>
+        <label class="check" id="pd-self"><input type="checkbox" id="f-self"> Players also play themselves</label>
+      </section>
+
+      <section class="group">
+        <h2>Lattice and play</h2>
+        <div class="row"><label for="f-L">Lattice side L</label><input type="number" id="f-L" value="40" min="3" step="1"></div>
+        <div class="row"><label for="f-radius">Neighbours</label>
+          <select id="f-radius">
+            <option value="1" selected>4 (radius 1)</option>
+            <option value="1.4142135623730951">8 (radius &radic;2)</option>
+            <option value="2">12 (radius 2)</option>
+            <option value="2.23606797749979">20 (radius &radic;5)</option>
+            <option value="2.8284271247461903">24 (radius &radic;8)</option>
+            <option value="3">28 (radius 3)</option>
+          </select></div>
+        <div class="row"><label for="f-history">Game across generations</label>
+          <select id="f-history"><option value="carry" selected>continued</option><option value="reset">restarted</option></select></div>
+        <div class="row"><label for="f-rounds">Rounds per generation</label><input type="number" id="f-rounds" value="1" min="1" step="1"></div>
+        <div class="row"><label for="f-mode">Payoffs</label>
+          <select id="f-mode"><option value="expected" selected>expected (exact)</option><option value="sampled">sampled moves</option></select></div>
+        <div class="row"><label for="f-K">Fermi temperature K</label><input type="number" id="f-K" value="0" min="0" step="any"></div>
+      </section>
+
+      <section class="group">
+        <h2>Learners</h2>
+        <div class="row"><label for="f-lcount">Number of learners</label><input type="number" id="f-lcount" value="0" min="0" step="1"></div>
+        <div class="row"><label for="f-lW">Trial length W</label><input type="number" id="f-lW" value="3" min="1" step="1"></div>
+        <div class="row"><label for="f-lsigma">Step size &sigma;</label><input type="number" id="f-lsigma" value="0.1" min="0" step="any"></div>
+        <label class="check"><input type="checkbox" id="f-lcopy" checked> Neighbours can copy learners</label>
+        <label class="check"><input type="checkbox" id="f-lkeen" checked> Keep a change only if it earned more</label>
+      </section>
+
+      <section class="group">
+        <h2>Sweep</h2>
+        <p class="hint">Every combination of the listed values is run for every seed. Separate values with commas; radius also takes sqrt2, sqrt5, sqrt8.</p>
+        <div id="sweep-rows" class="stack"></div>
+        <div class="btns"><button type="button" class="small" id="btn-add-sweep">Add a swept parameter</button></div>
+      </section>
+
+      <section class="group">
+        <h2>Seeds and length</h2>
+        <div class="row"><label for="f-seeds">Seeds</label><input type="text" id="f-seeds" value="1-20" spellcheck="false"></div>
+        <p class="hint">A range (1-1000), a list (3, 7, 12) or both (1-10, 20). Confirmation seeds start at 1001.</p>
+        <div class="row"><label for="f-gens">Generations</label><input type="number" id="f-gens" value="5000" min="1" step="1"></div>
+        <div class="row"><label for="f-logEvery">Log every n-th generation</label><input type="number" id="f-logEvery" value="50" min="1" step="1"></div>
+        <div class="row"><label for="f-dense">Log every generation up to</label><input type="number" id="f-dense" value="1000" min="0" step="1"></div>
+        <label class="check"><input type="checkbox" id="f-stop" checked> Stop at strong convergence</label>
+        <p class="hint">One vector left, no learners, expected payoffs: nothing can change after that, and the run file records the settled state.</p>
+      </section>
+    </fieldset>
+
+    <section class="group">
+      <h2>Run</h2>
+      <div class="count" id="run-count" aria-live="polite"></div>
+      <div class="row"><label for="f-jobs">Parallel workers</label><select id="f-jobs"></select></div>
+      <div class="row"><label for="f-tail">Settled value: mean of the last</label><input type="number" id="f-tail" value="1000" min="1" step="1"></div>
+      <p class="hint">generations of each run, as in the plotting scripts. Used for the table only.</p>
+      <div class="btns">
+        <button type="button" class="primary" id="btn-start">Start</button>
+        <button type="button" class="danger" id="btn-stop" disabled>Stop</button>
+        <button type="button" class="danger" id="btn-clear" disabled>Clear results</button>
+      </div>
+      <p class="msg" id="math-msg"></p>
+      <p class="msg" id="run-msg"></p>
+    </section>
+
+    <section class="group json">
+      <h2>Experiment file</h2>
+      <p class="hint">The same JSON the command-line runner reads. Commit it with the results.</p>
+      <textarea id="f-json" spellcheck="false" aria-label="Experiment file (JSON)"></textarea>
+      <div class="btns">
+        <button type="button" class="small" id="btn-apply-json">Apply edits</button>
+        <button type="button" class="small" id="btn-import">Import file</button>
+        <button type="button" class="small" id="btn-export">Download .json</button>
+        <input type="file" id="file-import" accept=".json,application/json" hidden>
+      </div>
+      <p class="msg" id="json-msg"></p>
+    </section>
+  </aside>
+
+  <main class="stage">
+    <section class="panel" aria-labelledby="h-progress">
+      <div class="panel-head">
+        <h3 id="h-progress">Progress</h3>
+        <span class="state" id="state" data-s="idle"><i></i><span id="state-text">Not started</span></span>
+      </div>
+      <div class="bar" aria-hidden="true"><span id="bar-all"></span></div>
+      <div class="stats" id="stats" aria-live="polite"><span>Set up an experiment on the left and press Start.</span></div>
+      <div class="workers" id="workers"></div>
+      <pre class="errors" id="errors" hidden></pre>
+      <div class="btns">
+        <button type="button" id="btn-zip" disabled>Download run files (.zip)</button>
+        <button type="button" id="btn-csv" disabled>Download summary (.csv)</button>
+        <button type="button" id="btn-png" disabled>Download chart (.png)</button>
+      </div>
+      <p class="note" id="zip-note">The zip holds one folder, named after the experiment, with experiment.json and one run file per setting and seed: the same layout as runs/&lt;name&gt;/ from the command line, so the plotting and summary scripts read it unchanged.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="h-chart">
+      <div class="panel-head">
+        <h3 id="h-chart">Strategy mix over generations</h3>
+        <div class="tools">
+          <label for="f-setting" id="setting-label" hidden>Setting <select id="f-setting"></select></label>
+          <label for="f-linear">Linear up to <input type="number" id="f-linear" value="100" min="1" step="1"></label>
+          <label for="f-band">Shade <select id="f-band"><option value="se">± 1 standard error</option><option value="sd">± 1 SD</option></select></label>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="chart" role="img" aria-label="Mean share of each strategy class over generations, over the finished seeds"></canvas></div>
+      <div class="readout" id="readout">Lines: mean over finished seeds. A run that stopped at strong convergence holds its final state to the end. Dotted line: median generation of strong convergence, shaded 10th to 90th percentile.</div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-table">
+      <div class="panel-head"><h3 id="h-table">Settled values by setting</h3></div>
+      <div class="table-wrap" id="table-wrap"><p class="empty">One row per setting appears here as runs finish: median and 10th to 90th percentile over seeds.</p></div>
+    </section>
+  </main>
+</div>
+
+<script src="model.js"></script>
+<script src="runner.js"></script>
+<script>
+"use strict";
+const M = window.LatticeModel, R = window.LatticeRunner;
+const $ = (id) => document.getElementById(id);
+const fmtInt = (x) => Math.round(x).toLocaleString("en-US");
+const fmt3 = (x) => (x == null || !Number.isFinite(x) ? "–" : x.toFixed(3));
+
+// ------------------------------------------------------------------ theme
+(function theme() {
+  const btn = $("btn-theme");
+  const dark = () => document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  const sync = () => { const d = dark(); btn.classList.toggle("is-dark", d); btn.title = btn.ariaLabel = d ? "Switch to light theme" : "Switch to dark theme"; drawChart(); };
+  btn.addEventListener("click", () => { document.documentElement.dataset.theme = dark() ? "light" : "dark"; sync(); });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", sync);
+  setTimeout(sync, 0);
+})();
+
+// ------------------------------------------------------------------ model identity
+// The run files record the SHA-256 of model.js, as the command-line runner does. The commit is
+// recorded only where the page that serves model.js names it (a meta tag added when publishing).
+const MATH = R.mathFingerprint(), MATH_SAME = MATH === R.REFERENCE_MATH;
+const MODEL = { file: "simulator/model.js", sha256: null, commit: null, dirty: null, version: M.MODEL_VERSION };
+let modelError = null;
+(async function modelInfo() {
+  const meta = document.querySelector('meta[name="lattice-commit"]');
+  if (meta && /^[0-9a-f]{7,40}$/.test(meta.content)) MODEL.commit = meta.content;
+  try {
+    const res = await fetch("model.js", { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    MODEL.sha256 = R.sha256(new Uint8Array(await res.arrayBuffer()));
+    $("model-id").innerHTML = `model version <b>${M.MODEL_VERSION}</b> · model.js <b>${MODEL.sha256.slice(0, 12)}</b>`;
+    $("model-id").title = "SHA-256 of model.js: " + MODEL.sha256;
+  } catch (e) {
+    modelError = "This page could not read model.js, so run files could not record which model made them. Open the page from a web server (the published site, or python -m http.server in the simulator folder), not as a local file.";
+    $("model-id").innerHTML = `model version <b>${M.MODEL_VERSION}</b> · <span style="color:var(--bad)">model.js not readable</span>`;
+  }
+  updateCount();
+})();
+
+// ------------------------------------------------------------------ form <-> experiment
+const RADII = { sqrt2: Math.SQRT2, "√2": Math.SQRT2, sqrt5: Math.sqrt(5), "√5": Math.sqrt(5), sqrt8: Math.sqrt(8), "√8": Math.sqrt(8) };
+const SWEEPABLE = ["K", "L", "radius", "rounds", "history", "mode", "T", "R", "P", "S", "stake", "selfInteraction", "game",
+  "learner.count", "learner.W", "learner.sigma", "learner.copyable", "learner.keen"];
+const num = (id) => { const v = parseFloat($(id).value); return Number.isFinite(v) ? v : null; };
+
+function parseSeeds(text) {
+  const out = [];
+  for (const part of text.split(",").map((s) => s.trim()).filter(Boolean)) {
+    const m = part.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+    if (m) { const a = +m[1], b = +m[2]; if (b < a) throw new Error(`seed range ${part} runs backwards`); for (let s = a; s <= b; s++) out.push(s); }
+    else if (/^\d+$/.test(part)) out.push(+part);
+    else throw new Error(`"${part}" is not a seed or a range of seeds`);
+  }
+  if (!out.length) throw new Error("give at least one seed");
+  if (new Set(out).size !== out.length) throw new Error("a seed is listed twice");
+  const contiguous = out.every((s, i) => i === 0 || s === out[i - 1] + 1);
+  return contiguous ? { from: out[0], count: out.length } : out;
+}
+function seedsText(spec) {
+  const list = R.seedsOf(spec);
+  const parts = [];
+  for (let i = 0; i < list.length;) {
+    let j = i; while (j + 1 < list.length && list[j + 1] === list[j] + 1) j++;
+    parts.push(j > i ? `${list[i]}-${list[j]}` : `${list[i]}`); i = j + 1;
+  }
+  return parts.join(", ");
+}
+function parseValue(key, s) {
+  const t = s.trim();
+  if (key === "radius" && RADII[t.toLowerCase()] !== undefined) return RADII[t.toLowerCase()];
+  if (t === "true" || t === "false") return t === "true";
+  if (t !== "" && Number.isFinite(Number(t))) return Number(t);
+  return t;
+}
+function valueText(v) {
+  if (typeof v === "number") { for (const [k, r] of Object.entries(RADII)) if (r === v && /^sqrt/.test(k)) return k; }
+  return String(v);
+}
+
+function addSweepRow(key = "K", values = "") {
+  const row = document.createElement("div");
+  row.className = "sweep-row";
+  const id = "sw" + Math.random().toString(36).slice(2, 8);
+  row.innerHTML = `<select id="${id}-k" aria-label="Swept parameter">${SWEEPABLE.map((k) => `<option${k === key ? " selected" : ""}>${k}</option>`).join("")}</select>` +
+    `<input type="text" id="${id}-v" aria-label="Values" placeholder="0, 0.05, 0.1" spellcheck="false">` +
+    `<button type="button" class="small" aria-label="Remove this swept parameter">Remove</button>`;
+  row.querySelector("input").value = values;
+  row.querySelector("button").addEventListener("click", () => { row.remove(); formChanged(); });
+  row.addEventListener("input", formChanged);
+  row.addEventListener("change", formChanged);
+  $("sweep-rows").appendChild(row);
+}
+
+// The experiment the form describes. Throws with a message a person can act on.
+function readForm() {
+  const name = $("f-name").value.trim();
+  const base = {
+    game: $("f-game").value, T: num("f-T"), R: num("f-R"), P: num("f-P"), S: num("f-S"), stake: num("f-stake"),
+    L: num("f-L"), radius: Number($("f-radius").value), selfInteraction: $("f-self").checked, mode: $("f-mode").value,
+    rounds: num("f-rounds"), history: $("f-history").value, K: num("f-K"),
+    learner: { count: num("f-lcount"), W: num("f-lW"), sigma: num("f-lsigma"), copyable: $("f-lcopy").checked, keen: $("f-lkeen").checked },
+  };
+  if (base.game !== "pd") { delete base.T; delete base.R; delete base.P; delete base.S; delete base.selfInteraction; } else delete base.stake;
+  for (const [k, v] of Object.entries(base)) if (v === null) throw new Error(`${k} needs a number`);
+  for (const [k, v] of Object.entries(base.learner)) if (v === null) throw new Error(`learner ${k} needs a number`);
+  const sweep = {};
+  for (const row of $("sweep-rows").children) {
+    const key = row.querySelector("select").value;
+    const raw = row.querySelector("input").value.split(",").filter((s) => s.trim() !== "");
+    if (!raw.length) throw new Error(`list at least one value for the swept parameter ${key}`);
+    if (sweep[key]) throw new Error(`${key} is swept twice`);
+    sweep[key] = raw.map((s) => parseValue(key, s));
+  }
+  const exp = { name, description: $("f-desc").value.trim(), base, sweep, seeds: parseSeeds($("f-seeds").value),
+    generations: num("f-gens"), logEvery: num("f-logEvery") };
+  const dense = num("f-dense");
+  if (dense) exp.logDenseUntil = dense;
+  if (!$("f-stop").checked) exp.stop = "none";
+  if (!exp.generations || exp.generations < 1) throw new Error("generations must be at least 1");
+  return exp;
+}
+
+function fillForm(exp) {
+  const b = Object.assign({}, M.DEFAULTS, exp.base || {});
+  const l = Object.assign({}, M.DEFAULTS.learner, (exp.base && exp.base.learner) || {});
+  $("f-name").value = exp.name || "";
+  $("f-desc").value = exp.description || "";
+  $("f-game").value = b.game; $("f-T").value = b.T; $("f-R").value = b.R; $("f-P").value = b.P; $("f-S").value = b.S; $("f-stake").value = b.stake;
+  $("f-self").checked = !!b.selfInteraction; $("f-L").value = b.L;
+  const rv = String(b.radius);
+  if (![...$("f-radius").options].some((o) => o.value === rv)) $("f-radius").add(new Option(`radius ${Number(b.radius).toFixed(3)}`, rv));
+  $("f-radius").value = rv;
+  $("f-history").value = b.history; $("f-rounds").value = b.rounds; $("f-mode").value = b.mode; $("f-K").value = b.K;
+  $("f-lcount").value = l.count; $("f-lW").value = l.W; $("f-lsigma").value = l.sigma; $("f-lcopy").checked = !!l.copyable; $("f-lkeen").checked = l.keen !== false;
+  $("sweep-rows").innerHTML = "";
+  for (const [k, vals] of Object.entries(exp.sweep || {})) addSweepRow(k, vals.map(valueText).join(", "));
+  $("f-seeds").value = seedsText(exp.seeds ?? 1);
+  $("f-gens").value = exp.generations ?? 1000; $("f-logEvery").value = exp.logEvery ?? 1; $("f-dense").value = exp.logDenseUntil ?? 0;
+  $("f-stop").checked = (exp.stop ?? "strong") === "strong";
+  gameChanged();
+}
+
+function gameChanged() {
+  const pd = $("f-game").value === "pd";
+  $("pd-payoffs").hidden = !pd; $("pd-self").hidden = !pd; $("mp-stake").hidden = pd;
+}
+
+let current = null, currentTasks = null, currentError = null;
+function updateCount() {
+  const el = $("run-count");
+  try {
+    current = readForm();
+    currentTasks = R.expand(current, M);
+    currentError = null;
+    const nSet = Object.values(current.sweep).reduce((a, v) => a * v.length, 1);
+    const nSeed = R.seedsOf(current.seeds).length;
+    el.className = "count";
+    el.textContent = `${fmtInt(currentTasks.length)} runs: ${fmtInt(nSet)} setting${nSet === 1 ? "" : "s"} × ${fmtInt(nSeed)} seed${nSeed === 1 ? "" : "s"}, up to ${fmtInt(current.generations)} generations`;
+  } catch (e) {
+    current = null; currentTasks = null; currentError = e.message;
+    el.className = "count err";
+    el.textContent = e.message;
+  }
+  if (!run || !run.active) $("btn-start").disabled = !currentTasks || !!modelError;
+  mathNote();
+  if (modelError) { $("run-msg").className = "msg err"; $("run-msg").textContent = modelError; }
+}
+// Whether this browser's run files will match the command line's bit for bit (see runner.js).
+function mathNote() {
+  const el = $("math-msg");
+  const uses = currentTasks && currentTasks.some((t) => t.params.K > 0 || t.params.learner.count > 0);
+  if (MATH_SAME) { el.className = "msg ok"; el.textContent = "This browser computes exp, log and cos exactly as the command-line runner does, so the run files will match it bit for bit."; }
+  else if (uses) { el.className = "msg err"; el.textContent = "This experiment uses K > 0 or learners, and this browser's exp, log or cos differ in the last digit from the command-line runner's. The run files will be valid, but they can differ from a command-line run of the same experiment after a few hundred generations. Experiments with K = 0 and no learners are not affected."; }
+  else { el.className = "msg ok"; el.textContent = "K = 0 and no learners: the run files will match the command-line runner bit for bit."; }
+}
+function formChanged() {
+  updateCount();
+  if (current) $("f-json").value = JSON.stringify(current, null, 2);
+  $("json-msg").textContent = "";
+}
+
+// ------------------------------------------------------------------ JSON file
+function applyJson(text) {
+  const msg = $("json-msg");
+  try {
+    const exp = JSON.parse(text);
+    if (typeof exp !== "object" || !exp || Array.isArray(exp)) throw new Error("the file must hold one JSON object");
+    const unknown = Object.keys(exp).filter((k) => !["name", "description", "base", "sweep", "seeds", "generations", "logEvery", "logDenseUntil", "stop", "expandedRuns", "model"].includes(k));
+    fillForm(exp);
+    formChanged();
+    msg.className = "msg ok";
+    msg.textContent = unknown.length ? `Loaded. Ignored keys the runner does not use: ${unknown.join(", ")}.` : "Loaded into the form.";
+  } catch (e) { msg.className = "msg err"; msg.textContent = "Not loaded: " + e.message; }
+}
+$("btn-apply-json").addEventListener("click", () => applyJson($("f-json").value));
+$("btn-import").addEventListener("click", () => $("file-import").click());
+$("file-import").addEventListener("change", async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const text = await f.text(); $("f-json").value = text; applyJson(text); e.target.value = "";
+});
+$("btn-export").addEventListener("click", () => {
+  if (!current) { $("json-msg").className = "msg err"; $("json-msg").textContent = "Fix the form first: " + currentError; return; }
+  save(new Blob([JSON.stringify(current, null, 2) + "\n"], { type: "application/json" }), current.name.replace(/-/g, "_") + ".json");
+});
+
+function save(blob, filename) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+
+// ------------------------------------------------------------------ zip (no library)
+const CRC = new Uint32Array(256);
+for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; CRC[n] = c >>> 0; }
+function crc32(b) { let c = 0xffffffff; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
+function zipBlob(entries) {
+  if (entries.length > 65535) throw new Error("more than 65,535 files: too many for one zip; run the experiment in parts");
+  const enc = new TextEncoder(), parts = [], central = [];
+  const d = new Date();
+  const time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+  const date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  let off = 0, cdSize = 0;
+  for (const e of entries) {
+    const name = enc.encode(e.path);
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, e.method, true);
+    h.setUint16(10, time, true); h.setUint16(12, date, true); h.setUint32(14, e.crc, true); h.setUint32(18, e.bytes.length, true);
+    h.setUint32(22, e.size, true); h.setUint16(26, name.length, true); h.setUint16(28, 0, true);
+    parts.push(h.buffer, name, e.bytes);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, e.method, true);
+    c.setUint16(12, time, true); c.setUint16(14, date, true); c.setUint32(16, e.crc, true); c.setUint32(20, e.bytes.length, true);
+    c.setUint32(24, e.size, true); c.setUint16(28, name.length, true); c.setUint32(42, off, true);
+    central.push(c.buffer, name);
+    off += 30 + name.length + e.bytes.length; cdSize += 46 + name.length;
+    if (off > 0xffffffff) throw new Error("the results are over 4 GB: too large for one zip; run the experiment in parts");
+  }
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, entries.length, true); end.setUint16(10, entries.length, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, off, true);
+  return new Blob([...parts, ...central, end.buffer], { type: "application/zip" });
+}
+
+// ------------------------------------------------------------------ statistics
+function pct(sorted, p) { // linear interpolation, as numpy.percentile
+  if (!sorted.length) return NaN;
+  const x = (sorted.length - 1) * p / 100, i = Math.floor(x), f = x - i;
+  return i + 1 < sorted.length ? sorted[i] + f * (sorted[i + 1] - sorted[i]) : sorted[i];
+}
+const sortNum = (a) => a.filter((x) => x != null && Number.isFinite(x)).sort((x, y) => x - y);
+
+// One aggregate per setting: running sums over finished seeds on a fixed generation grid
+// (the generations a full-length run logs). A run that stopped early holds its last logged state.
+function newSetting(task, total) {
+  const grid = R.loggedGens(task);
+  return { key: JSON.stringify(task.sweep), sweep: task.sweep, total, grid, classes: null, n: 0, sum: null, sq: null, runs: [] };
+}
+function addToSetting(st, s, tail) {
+  if (!st.classes) {
+    st.classes = s.classes;
+    st.series = s.classes.concat(["C moves", "cc"]);
+    st.sum = st.series.map(() => new Float64Array(st.grid.length));
+    st.sq = st.series.map(() => new Float64Array(st.grid.length));
+  }
+  const cols = s.classes.map((c) => s.cls[c]).concat([s.coop, s.cc]);
+  const g = s.gen;
+  let j = 0;
+  for (let i = 0; i < st.grid.length; i++) {
+    while (j + 1 < g.length && g[j + 1] <= st.grid[i]) j++;
+    for (let k = 0; k < cols.length; k++) {
+      if (!cols[k]) continue;
+      const v = cols[k][j];
+      st.sum[k][i] += v; st.sq[k][i] += v * v;
+    }
+  }
+  st.n++;
+  // settled values: mean over the last `tail` generations of this run's log
+  const last = g[g.length - 1], from = last - tail;
+  const mean = (arr) => { if (!arr) return null; let t = 0, n = 0; for (let i = 0; i < g.length; i++) if (g[i] > from) { t += arr[i]; n++; } return n ? t / n : null; };
+  const shares = s.classes.map((c) => mean(s.cls[c]));
+  let big = 0; shares.forEach((v, i) => { if (v > shares[big]) big = i; });
+  st.runs.push({ coop: mean(s.coop), cc: mean(s.cc), stopGen: s.stopped ? s.stopped.gen : null, largest: s.classes[big], seconds: s.seconds });
+}
+
+// ------------------------------------------------------------------ running
+let run = null;
+const cores = Math.max(1, navigator.hardwareConcurrency || 4);
+for (let j = 1; j <= cores; j++) $("f-jobs").add(new Option(String(j), String(j)));
+$("f-jobs").value = String(Math.max(1, cores - 1));
+
+function start() {
+  if (!currentTasks || modelError) return;
+  const exp = current;
+  // interleave settings so every setting fills in at the same pace (run files do not depend on order)
+  const nSeed = R.seedsOf(exp.seeds).length;
+  const order = currentTasks.map((t, i) => [t, i % nSeed, Math.floor(i / nSeed)]).sort((x, y) => x[1] - y[1] || x[2] - y[2]).map((x) => x[0]);
+  const settings = new Map();
+  for (const t of currentTasks) { const k = JSON.stringify(t.sweep); if (!settings.has(k)) settings.set(k, newSetting(t, nSeed)); }
+  run = {
+    exp, tasks: order, next: 0, done: 0, failed: [], files: [], settings, workers: [], active: true, stopping: false,
+    t0: performance.now(), t1: null, tail: Math.max(1, num("f-tail") || 1000), downloaded: false, wake: null,
+    runner: { browser: navigator.userAgent, page: "simulator/designer.html", workers: Number($("f-jobs").value), math: MATH },
+  };
+  $("f-setting").innerHTML = "";
+  for (const st of settings.values()) $("f-setting").add(new Option(settingLabel(st.sweep), st.key));
+  $("setting-label").hidden = settings.size < 2;
+  $("form").disabled = true; $("f-tail").disabled = true; $("f-jobs").disabled = true;
+  $("btn-apply-json").disabled = $("btn-import").disabled = true;
+  $("btn-start").disabled = true; $("btn-stop").disabled = false; $("btn-clear").disabled = true;
+  $("errors").hidden = true; $("errors").textContent = "";
+  $("run-msg").textContent = "";
+  setState("running", "Running");
+  requestWake();
+  const n = Math.min(Number($("f-jobs").value), order.length);
+  $("workers").innerHTML = "";
+  for (let w = 0; w < n; w++) spawn(w);
+  render();
+}
+
+function spawn(idx) {
+  const el = document.createElement("div");
+  el.className = "worker";
+  el.innerHTML = `<div class="nm">starting…</div><div class="bar"><span></span></div><div class="gen"></div>`;
+  $("workers").appendChild(el);
+  let worker;
+  try { worker = new Worker("designer-worker.js"); }
+  catch (e) { fail(`Workers could not start: ${e.message}. Open the page from a web server, not as a local file.`); return; }
+  const w = { worker, el, task: null, g: 0, idle: false };
+  run.workers.push(w);
+  worker.onmessage = (e) => onMessage(w, e.data);
+  worker.onerror = (e) => { e.preventDefault(); if (w.task) run.failed.push({ name: w.task.name, error: e.message || "worker error" }); w.task = null; feed(w); scheduleRender(); };
+  feed(w);
+}
+
+function feed(w) {
+  if (!run) return;
+  if (run.stopping || run.next >= run.tasks.length) {
+    w.idle = true; w.task = null; w.worker.terminate();
+    w.el.querySelector(".nm").textContent = run.stopping ? "stopped" : "done";
+    w.el.querySelector(".gen").textContent = ""; w.el.querySelector(".bar span").style.width = "0";
+    if (run.workers.every((x) => x.idle)) finish();
+    return;
+  }
+  const task = run.tasks[run.next++];
+  w.task = task; w.g = 0;
+  w.worker.postMessage({ type: "run", task, model: MODEL, runner: run.runner });
+}
+
+function onMessage(w, m) {
+  if (!run) return;
+  if (m.type === "progress") { w.g = m.g; w.coop = m.coop; scheduleRender(); return; }
+  if (m.type === "done") {
+    run.files.push({ path: `${run.exp.name}/${m.name}.json`, ...m.file });
+    run.done++;
+    addToSetting(run.settings.get(JSON.stringify(m.summary.sweep)), m.summary, run.tail);
+    run.dirtyChart = true;
+  } else if (m.type === "failed") {
+    run.failed.push({ name: m.name, error: m.error });
+  }
+  feed(w);
+  scheduleRender();
+}
+
+function finish() {
+  run.active = false; run.t1 = performance.now();
+  const total = run.tasks.length, ok = run.done;
+  if (run.stopping) setState("stopped", `Stopped: ${fmtInt(ok)} of ${fmtInt(total)} runs`);
+  else if (run.failed.length) setState("failed", `Finished with ${run.failed.length} failed`);
+  else setState("finished", `Finished: ${fmtInt(ok)} runs`);
+  $("form").disabled = false; $("f-tail").disabled = false; $("f-jobs").disabled = false;
+  $("btn-apply-json").disabled = $("btn-import").disabled = false;
+  $("btn-stop").disabled = true; $("btn-clear").disabled = false;
+  updateCount();
+  releaseWake();
+  render();
+}
+
+function fail(text) { $("run-msg").className = "msg err"; $("run-msg").textContent = text; if (run) { run.stopping = true; run.workers.forEach((w) => feed(w)); if (!run.workers.length) finish(); } }
+
+// two-step buttons: the viewer frame has no confirm() dialog, so the button asks itself
+function armed(btn, label, action) {
+  btn.addEventListener("click", () => {
+    if (btn.classList.contains("armed")) { btn.classList.remove("armed"); btn.textContent = label; action(); return; }
+    btn.classList.add("armed"); btn.textContent = "Click again to confirm";
+    setTimeout(() => { btn.classList.remove("armed"); btn.textContent = label; }, 4000);
+  });
+}
+$("btn-start").addEventListener("click", start);
+armed($("btn-stop"), "Stop", () => {
+  if (!run || !run.active) return;
+  run.stopping = true;
+  for (const w of run.workers) if (!w.idle) { w.worker.terminate(); w.task = null; feed(w); }
+});
+armed($("btn-clear"), "Clear results", () => {
+  run = null; $("workers").innerHTML = ""; $("errors").hidden = true; $("table-wrap").innerHTML = '<p class="empty">One row per setting appears here as runs finish: median and 10th to 90th percentile over seeds.</p>';
+  $("setting-label").hidden = true; setState("idle", "Not started"); $("btn-clear").disabled = true;
+  $("stats").innerHTML = "<span>Set up an experiment on the left and press Start.</span>"; $("bar-all").style.width = "0";
+  updateCount(); render();
+});
+
+function setState(s, text) { $("state").dataset.s = s; $("state-text").textContent = text; }
+
+async function requestWake() { try { run.wake = await navigator.wakeLock.request("screen"); } catch (_) { /* not granted: the run still goes on while the tab is visible */ } }
+function releaseWake() { try { run && run.wake && run.wake.release(); } catch (_) { /* already released */ } }
+document.addEventListener("visibilitychange", () => { if (run && run.active && document.visibilityState === "visible") requestWake(); });
+window.addEventListener("beforeunload", (e) => { if (run && (run.active || (run.done && !run.downloaded))) { e.preventDefault(); e.returnValue = ""; } });
+
+// ------------------------------------------------------------------ downloads
+$("btn-zip").addEventListener("click", () => {
+  try {
+    const exp = Object.assign({}, run.exp, { expandedRuns: run.tasks.length, model: MODEL });
+    const raw = new TextEncoder().encode(JSON.stringify(exp, null, 2));
+    const entries = [{ path: `${run.exp.name}/experiment.json`, bytes: raw, crc: crc32(raw), size: raw.length, method: 0 }]
+      .concat(run.files.slice().sort((a, b) => (a.path < b.path ? -1 : 1)));
+    save(zipBlob(entries), `${run.exp.name}.zip`);
+    run.downloaded = true;
+  } catch (e) { $("run-msg").className = "msg err"; $("run-msg").textContent = "Zip not made: " + e.message; }
+});
+$("btn-csv").addEventListener("click", () => {
+  const rows = tableRows();
+  const head = Object.keys(rows[0]);
+  const q = (v) => (typeof v === "string" && /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v ?? "");
+  const csv = [head.join(",")].concat(rows.map((r) => head.map((k) => q(r[k])).join(","))).join("\n") + "\n";
+  save(new Blob([csv], { type: "text/csv" }), `${run.exp.name}_summary.csv`);
+});
+$("btn-png").addEventListener("click", () => {
+  $("chart").toBlob((b) => b && save(b, `${run.exp.name}_mix.png`), "image/png");
+});
+
+// ------------------------------------------------------------------ rendering
+let renderQueued = false;
+function scheduleRender() { if (!renderQueued) { renderQueued = true; setTimeout(() => { renderQueued = false; render(); }, 200); } }
+function fmtDur(s) {
+  if (!Number.isFinite(s)) return "–";
+  s = Math.round(s);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  return h ? `${h} h ${String(m).padStart(2, "0")} min` : m ? `${m} min ${String(x).padStart(2, "0")} s` : `${x} s`;
+}
+function settingLabel(sweep) { const e = Object.entries(sweep); return e.length ? e.map(([k, v]) => `${k} = ${R.fmtValue(v)}`).join(", ") : "all runs"; }
+
+function render() {
+  const has = !!(run && run.done);
+  $("btn-zip").disabled = !has; $("btn-csv").disabled = !has; $("btn-png").disabled = !has;
+  if (!run) { drawChart(); return; }
+  const total = run.tasks.length;
+  const inflight = run.workers.reduce((a, w) => a + (w.task ? Math.min(1, w.g / Math.max(1, w.task.generations)) : 0), 0);
+  $("bar-all").style.width = (100 * run.done / total).toFixed(2) + "%";
+  const elapsed = ((run.t1 ?? performance.now()) - run.t0) / 1000;
+  const work = run.done + run.failed.length + inflight;
+  const left = run.active && work > 0 ? elapsed * (total - work) / work : NaN;
+  $("stats").innerHTML = [
+    `<span><b>${fmtInt(run.done)}</b> of ${fmtInt(total)} runs done</span>`,
+    run.failed.length ? `<span style="color:var(--bad)"><b>${run.failed.length}</b> failed</span>` : "",
+    `<span>elapsed <b>${fmtDur(elapsed)}</b></span>`,
+    run.active ? `<span>about <b>${fmtDur(left)}</b> left</span>` : "",
+    `<span><b>${run.workers.filter((w) => !w.idle).length}</b> workers busy</span>`,
+  ].join("");
+  for (const w of run.workers) {
+    if (!w.task) continue;
+    w.el.querySelector(".nm").textContent = w.task.name;
+    w.el.querySelector(".nm").title = w.task.name;
+    w.el.querySelector(".bar span").style.width = (100 * w.g / Math.max(1, w.task.generations)).toFixed(1) + "%";
+    w.el.querySelector(".gen").textContent = `generation ${fmtInt(w.g)} of ${fmtInt(w.task.generations)}` + (w.coop != null ? ` · C moves ${w.coop.toFixed(3)}` : "");
+  }
+  if (run.failed.length) { $("errors").hidden = false; $("errors").textContent = run.failed.map((f) => `${f.name}\n${f.error}`).join("\n\n"); }
+  renderTable();
+  if (run.dirtyChart) { run.dirtyChart = false; drawChart(); }
+}
+
+function tableRows() {
+  const out = [];
+  for (const st of run.settings.values()) {
+    const r = st.runs;
+    const c = sortNum(r.map((x) => x.coop)), cc = sortNum(r.map((x) => x.cc)), sg = sortNum(r.map((x) => x.stopGen));
+    const largest = {};
+    for (const x of r) largest[x.largest] = (largest[x.largest] || 0) + 1;
+    const row = Object.assign({}, ...Object.entries(st.sweep).map(([k, v]) => ({ [k]: v })), {
+      seeds_done: r.length, seeds_total: st.total,
+      coop_median: pct(c, 50), coop_p10: pct(c, 10), coop_p90: pct(c, 90),
+      cc_median: pct(cc, 50), cc_p10: pct(cc, 10), cc_p90: pct(cc, 90),
+      converged: sg.length, convergence_gen_median: pct(sg, 50), convergence_gen_p10: pct(sg, 10), convergence_gen_p90: pct(sg, 90),
+    });
+    for (const k of (st.classes || [])) row[`largest_${k}`] = largest[k] || 0;
+    row._st = st;
+    out.push(row);
+  }
+  return out.map((r) => { const st = r._st; delete r._st; Object.defineProperty(r, "_st", { value: st, enumerable: false }); return r; });
+}
+
+function renderTable() {
+  if (!run.done) return;
+  const rows = tableRows();
+  const sweepKeys = Object.keys(run.exp.sweep);
+  const sel = $("f-setting").value;
+  const spread = (m, a, b, f) => (Number.isFinite(m) ? `${f(m)} <small>(${f(a)}–${f(b)})</small>` : "–");
+  const html = [`<table><thead><tr>${sweepKeys.length ? sweepKeys.map((k) => `<th class="l">${k}</th>`).join("") : '<th class="l">setting</th>'}` +
+    `<th>seeds</th><th>C moves</th><th>mutual coop. cc</th><th>converged</th><th>convergence generation</th><th class="l">largest class (seeds)</th></tr></thead><tbody>`];
+  for (const r of rows) {
+    const st = r._st;
+    const big = Object.keys(r).filter((k) => k.startsWith("largest_") && r[k] > 0).sort((a, b) => r[b] - r[a]).slice(0, 4)
+      .map((k) => `${k.slice(8)} ${r[k]}`).join(" · ");
+    html.push(`<tr data-key="${encodeURIComponent(st.key)}"${st.key === sel ? ' class="sel"' : ""}>` +
+      (sweepKeys.length ? sweepKeys.map((k) => `<td class="l">${R.fmtValue(st.sweep[k])}</td>`).join("") : "<td>all runs</td>") +
+      `<td>${r.seeds_done} / ${r.seeds_total}</td><td>${spread(r.coop_median, r.coop_p10, r.coop_p90, fmt3)}</td>` +
+      `<td>${spread(r.cc_median, r.cc_p10, r.cc_p90, fmt3)}</td><td>${r.converged}</td>` +
+      `<td>${spread(r.convergence_gen_median, r.convergence_gen_p10, r.convergence_gen_p90, fmtInt)}</td><td class="l">${big}</td></tr>`);
+  }
+  html.push("</tbody></table>");
+  $("table-wrap").innerHTML = html.join("");
+  $("table-wrap").querySelectorAll("tbody tr").forEach((tr) => tr.addEventListener("click", () => {
+    $("f-setting").value = decodeURIComponent(tr.dataset.key); drawChart(); renderTable();
+  }));
+}
+
+// ------------------------------------------------------------------ chart
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+let chartGeom = null;
+function classColors(game, classes) {
+  const named = M.createSim({ game, L: 3 }).NAMED;
+  return classes.map((c) => { const n = named.find((x) => x.name === c); return css(n ? n.color : "--c-other"); });
+}
+function drawChart() {
+  const cv = $("chart");
+  const W = cv.clientWidth, H = cv.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (!W) return;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = css("--surface"); ctx.fillRect(0, 0, W, H);
+  ctx.font = `12px ${css("--font-data")}`;
+  const st = run && run.settings.get($("f-setting").value || [...run.settings.keys()][0]);
+  if (!st || !st.n) {
+    ctx.fillStyle = css("--muted"); ctx.font = `13px ${css("--font-ui")}`;
+    ctx.fillText(run ? "Waiting for the first run to finish…" : "The mean strategy mix over the finished seeds appears here once a run finishes.", 16, 30);
+    chartGeom = null; return;
+  }
+  const narrow = W < 560;
+  const pad = { l: 44, r: 12, t: narrow ? 66 : 44, b: 34 };
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const grid = st.grid, gmax = grid[grid.length - 1] || 1;
+  const t = Math.max(1, num("f-linear") || 100);
+  const ls = t === 100 ? 1 : Math.max(1, Math.log10(gmax / t));
+  const u = (x) => (x <= t ? (x / t) * ls : ls + Math.log10(x / t));
+  const U = Math.max(u(gmax), 1e-9);
+  const X = (x) => pad.l + (u(x) / U) * pw, Y = (v) => pad.t + (1 - v) * ph;
+  // grid and axes
+  ctx.strokeStyle = css("--grid"); ctx.lineWidth = 1; ctx.fillStyle = css("--muted"); ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (let v = 0; v <= 1.0001; v += 0.2) { ctx.beginPath(); ctx.moveTo(pad.l, Y(v)); ctx.lineTo(pad.l + pw, Y(v)); ctx.stroke(); ctx.fillText(v.toFixed(1), pad.l - 6, Y(v)); }
+  const ticks = t === 100 ? [0] : [0, t / 4, t / 2, (3 * t) / 4];
+  for (let k = Math.ceil(Math.log10(t)); 10 ** k <= gmax; k++) ticks.push(10 ** k);
+  if (t !== 100 && !ticks.includes(t)) ticks.push(t);
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  let lastX = -1e9;
+  for (const x of ticks.filter((x) => x <= gmax).sort((a, b) => a - b)) {
+    const px = X(x); if (px - lastX < 36) continue; lastX = px;
+    ctx.strokeStyle = css("--line"); ctx.beginPath(); ctx.moveTo(px, pad.t + ph); ctx.lineTo(px, pad.t + ph + 4); ctx.stroke();
+    ctx.fillText(fmtInt(x), px, pad.t + ph + 7);
+  }
+  ctx.fillText(`generation (linear to ${fmtInt(t)}, log above)`, pad.l + pw / 2, pad.t + ph + 20);
+  // convergence: median generation and 10th-90th percentile band of the runs that stopped
+  const sg = sortNum(st.runs.map((r) => r.stopGen));
+  if (sg.length) {
+    const lo = pct(sg, 10), md = pct(sg, 50), hi = pct(sg, 90);
+    ctx.fillStyle = css("--grid"); ctx.globalAlpha = 0.9; ctx.fillRect(X(lo), pad.t, Math.max(1, X(hi) - X(lo)), ph); ctx.globalAlpha = 1;
+    ctx.strokeStyle = css("--muted"); ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.moveTo(X(md), pad.t); ctx.lineTo(X(md), pad.t + ph); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = css("--muted"); ctx.textBaseline = "top";
+    const label = sg.length > 1 ? `converged ${sg.length}/${st.n}: median ${fmtInt(md)} (${fmtInt(lo)}–${fmtInt(hi)})` : `converged at ${fmtInt(md)}`;
+    const right = X(md) > pad.l + pw * 0.6;
+    ctx.textAlign = right ? "right" : "left"; ctx.fillText(label, X(md) + (right ? -5 : 5), pad.t + 4);
+  }
+  // lines: mean, shade +- SE or SD
+  const n = st.n, band = $("f-band").value;
+  const cols = classColors(run.exp.base.game, st.classes).concat([css("--ink"), css("--ink")]);
+  const stats = st.series.map((_, k) => {
+    const m = new Float64Array(grid.length), b = new Float64Array(grid.length);
+    for (let i = 0; i < grid.length; i++) {
+      const mu = st.sum[k][i] / n; m[i] = mu;
+      const v = n > 1 ? Math.max(0, (st.sq[k][i] - n * mu * mu) / (n - 1)) : 0;
+      b[i] = band === "se" ? Math.sqrt(v / n) : Math.sqrt(v);
+    }
+    return { m, b };
+  });
+  st.series.forEach((name, k) => {
+    if (name === "cc" && st.sum[k].every((x) => x === 0) && run.exp.base.game !== "pd") return;
+    const { m, b } = stats[k];
+    ctx.fillStyle = cols[k]; ctx.globalAlpha = k >= st.classes.length ? 0.10 : 0.22;
+    ctx.beginPath();
+    for (let i = 0; i < grid.length; i++) ctx.lineTo(X(grid[i]), Y(Math.min(1, m[i] + b[i])));
+    for (let i = grid.length - 1; i >= 0; i--) ctx.lineTo(X(grid[i]), Y(Math.max(0, m[i] - b[i])));
+    ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+  });
+  st.series.forEach((name, k) => {
+    if (name === "cc" && run.exp.base.game !== "pd") return;
+    const { m } = stats[k];
+    ctx.strokeStyle = cols[k]; ctx.lineWidth = k >= st.classes.length ? 1.3 : 1.8;
+    ctx.setLineDash(name === "cc" ? [5, 4] : []);
+    ctx.beginPath();
+    for (let i = 0; i < grid.length; i++) { const px = X(grid[i]), py = Y(m[i]); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+    ctx.stroke(); ctx.setLineDash([]);
+  });
+  ctx.strokeStyle = css("--faint"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph); ctx.lineTo(pad.l + pw, pad.t + ph); ctx.stroke();
+  // legend (drawn into the canvas so the downloaded PNG carries it)
+  ctx.font = `12px ${css("--font-ui")}`; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  let lx = pad.l, ly = 12;
+  const items = st.series.map((name, k) => ({ name: name === "cc" ? "mutual cooperation cc" : name, col: cols[k], dash: name === "cc", thin: k >= st.classes.length }))
+    .filter((it) => !(it.dash && run.exp.base.game !== "pd"));
+  for (const it of items) {
+    const w = 22 + ctx.measureText(it.name).width + 14;
+    if (lx + w > W - 8) { lx = pad.l; ly += 18; }
+    ctx.strokeStyle = it.col; ctx.lineWidth = it.thin ? 1.3 : 2.5; ctx.setLineDash(it.dash ? [5, 4] : []);
+    ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + 16, ly); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = css("--ink"); ctx.fillText(it.name, lx + 22, ly); lx += w;
+  }
+  ctx.fillStyle = css("--muted"); ctx.textAlign = "right";
+  ctx.fillText(`${settingLabel(st.sweep)} · mean of ${fmtInt(n)} seed${n === 1 ? "" : "s"} · shade ± 1 ${band === "se" ? "SE" : "SD"}`, W - 8, ly + 18);
+  chartGeom = { st, stats, X, pad, pw, ph, grid };
+}
+
+$("chart").addEventListener("mousemove", (e) => {
+  if (!chartGeom) return;
+  const r = e.currentTarget.getBoundingClientRect(), x = e.clientX - r.left;
+  const { st, stats, X, grid } = chartGeom;
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < grid.length; i++) { const d = Math.abs(X(grid[i]) - x); if (d < bd) { bd = d; best = i; } }
+  $("readout").innerHTML = `generation <b>${fmtInt(grid[best])}</b> · ` + st.series.map((name, k) => `${name} <b>${stats[k].m[best].toFixed(3)}</b>`).join(" · ");
+});
+$("f-setting").addEventListener("change", () => { drawChart(); if (run) renderTable(); });
+$("f-linear").addEventListener("input", drawChart);
+$("f-band").addEventListener("change", drawChart);
+window.addEventListener("resize", () => drawChart());
+
+// ------------------------------------------------------------------ boot
+$("btn-add-sweep").addEventListener("click", () => { addSweepRow(); formChanged(); });
+$("form").addEventListener("input", formChanged);
+$("form").addEventListener("change", formChanged);
+$("f-game").addEventListener("change", gameChanged);
+gameChanged();
+formChanged();
+drawChart();
+</script>
