@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <title>Experiment Designer</title>
-<meta name="lattice-commit" content="9714a931c64695de77ca789b12d0b2bef4e0717b">
+<meta name="lattice-commit" content="cf669d63c4c1322cc4cc411992ffaddcf59cc9bf">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -159,7 +159,7 @@ tbody tr { cursor: pointer; }
       <h1>Experiment designer</h1>
       <p>Set up an experiment, run every setting and seed in this browser with the same model as the
         command-line runner, watch the strategy mix build up, and download the run files.
-        <a href="index.html">Open the simulator</a></p>
+        <a href="index.html">Open simulator</a></p>
     </div>
     <div class="model-id" id="model-id">model <b>…</b></div>
     <button type="button" class="theme-btn" id="btn-theme" title="Switch to dark theme" aria-label="Switch to dark theme">
@@ -174,11 +174,11 @@ tbody tr { cursor: pointer; }
         <h2>Experiment</h2>
         <div class="stack">
           <label for="f-name">Name (folder of the run files)</label>
-          <input type="text" id="f-name" value="carry-r1-L40-mix-example" spellcheck="false">
+          <input type="text" id="f-name" value="experiment-000" spellcheck="false">
         </div>
         <div class="stack">
           <label for="f-desc">Description</label>
-          <textarea id="f-desc" rows="3">Example: continued game, 1 round per generation, 40 x 40, 4 neighbours, K = 0, PD (5, 3, 1, 0), expected payoffs, no learners; 20 seeds, up to 5,000 generations. Not a pre-registered study.</textarea>
+          <textarea id="f-desc" rows="3" placeholder="enter description here ..."></textarea>
         </div>
       </section>
 
