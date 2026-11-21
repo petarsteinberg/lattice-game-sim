@@ -19,8 +19,6 @@ sites and nudge their own vectors; keen ones keep a change only when it pays.
   the random seed. The same seed and settings always give the same run.
 - **Charts:** strategy mix, cooperation (or payoff spread), mean payoff (or exploitability) with
   well-mixed and mean-vs-mean reference lines, and the strategy vector's components.
-- **Run files:** export a run with every setting and edit you made, and load one to replay it
-  exactly.
 - **Experiment designer** (`designer.html`, linked from the simulator): set up a sweep of
   settings and seeds, run it in the browser on several cores, watch the mean strategy mix and a
   per-setting summary build up, and download every run file as a zip, plus a summary CSV and the

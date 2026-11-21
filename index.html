@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Lattice Game Sim</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -64,7 +65,7 @@ body {
   padding-block: 16px 32px;
 }
 .app { max-width: 1800px; margin: 0 auto; display: grid; gap: 16px;
-  grid-template-columns: 290px minmax(0, 1fr); grid-template-areas: "top top" "rail stage"; }
+  grid-template-columns: 330px minmax(0, 1fr); grid-template-areas: "top top" "rail stage"; }
 header.top { grid-area: top; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; }
 header.top h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
 header.top p { margin: 2px 0 0; color: var(--muted); max-width: 70ch; }
@@ -126,8 +127,14 @@ button.small { font-size: 12px; padding: 4px 8px; }
 .export textarea { width: 100%; resize: vertical; font: 11px/1.4 var(--font-data); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
 #run-status:empty { display: none; }
 details.how { font-size: 12.5px; color: var(--muted); }
+details.more { gap: 0; }
+details.more > summary { cursor: pointer; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+details.more[open] > summary { margin-bottom: 10px; }
+details.more .sub { display: flex; flex-direction: column; gap: 10px; }
+details.more .sub + .sub { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+details.more .sub h2 { font-size: 12px; text-transform: none; letter-spacing: 0; color: var(--ink); }
 details.how summary { cursor: pointer; color: var(--ink); font-weight: 500; }
-details.how ol { padding-left: 18px; margin: 8px 0 0; display: flex; flex-direction: column; gap: 4px; }
+details.how ol { padding: 0 1.4em; margin: 8px 0 0; list-style-position: outside; display: flex; flex-direction: column; gap: 4px; }
 details.explain { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
 details.explain summary { cursor: pointer; color: var(--ink); font-weight: 500; }
 details.explain p { margin: 8px 0 0; max-width: 68ch; }
@@ -179,7 +186,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
   <header class="top">
     <div>
       <h1>Lattice Game Sim</h1>
-      <p>Every player starts with a random memory-one strategy, plays an iterated game with each of its neighbours, and copies better-scoring neighbours with the Fermi rule. <a href="designer.html" style="color:var(--focus)">Design and run an experiment</a></p>
+      <p>Every player starts with a random memory-one strategy, plays an iterated game with each of its neighbours, and copies better-scoring neighbours with the Fermi rule. <a href="designer.html" style="color:var(--focus)">Run experiments</a></p>
     </div>
     <div class="top-right">
     <div class="status" aria-live="polite">
@@ -208,20 +215,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
       <input id="speed" type="range" min="1" max="61" step="1" value="24" aria-label="Steps per second">
       <div class="row"><label for="seed">Random seed</label>
         <span style="display:flex;gap:6px"><input id="seed" type="number" value="1" min="0" step="1"><button id="btn-seed" class="small" type="button" title="Pick a new seed and restart">New</button></span></div>
-      <div class="controls-run two">
-        <button id="btn-load" class="small" type="button">Load run file</button>
-        <button id="btn-export" class="small" type="button">Export run</button>
-      </div>
-      <input id="load-file" type="file" accept=".json,application/json" hidden>
       <div class="readout" id="run-status" aria-live="polite"></div>
-      <div id="export-panel" class="export stack" hidden>
-        <textarea id="export-text" readonly rows="6" aria-label="Run file (JSON)"></textarea>
-        <div class="controls-run two">
-          <button id="btn-copy" class="small" type="button">Copy</button>
-          <button id="btn-download" class="small" type="button">Download</button>
-        </div>
-        <p class="hint" style="margin:0">Same format as the command-line runner. Download asks you to confirm the save; if it is not available, copy the text and save it as a .json file.</p>
-      </div>
     </section>
 
     <section class="group" aria-labelledby="g-lat">
@@ -230,8 +224,8 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
         <select id="L"><option value="20">20 x 20</option><option value="30">30 x 30</option><option value="50">50 x 50</option><option value="80">80 x 80</option><option value="100" selected>100 x 100</option><option value="150">150 x 150</option><option value="200">200 x 200</option><option value="300">300 x 300</option><option value="400">400 x 400</option></select></div>
       <div class="stack"><label for="radius">Neighbour radius</label>
         <select id="radius">
-          <option value="1">1 (4 neighbours)</option>
-          <option value="1.4142135623730951" selected>&radic;2 (8 neighbours)</option>
+          <option value="1" selected>1 (4 neighbours)</option>
+          <option value="1.4142135623730951">&radic;2 (8 neighbours)</option>
           <option value="2">2 (12 neighbours)</option>
           <option value="2.23606797749979">&radic;5 (20 neighbours)</option>
           <option value="2.8284271247461903">&radic;8 (24 neighbours)</option>
@@ -274,28 +268,6 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
       <p class="hint">Expected averages over every way the rounds could go. Sampled plays the moves out with random draws.</p>
     </section>
 
-    <section class="group" aria-labelledby="g-dyn">
-      <h2 id="g-dyn">Imitator settings</h2>
-      <div class="row"><label for="K">Fermi temperature K</label><input id="K" type="number" min="0" step="0.01" value="0"></div>
-      <input id="K-range" type="range" min="0" max="3" step="0.01" value="0" aria-label="Fermi temperature K">
-      <p class="hint">Copy probability is 1 / (1 + e<sup>&minus;&Delta;/K</sup>), where &Delta; is the neighbour's total payoff minus your own. K = 0 means copy only if strictly better.</p>
-    </section>
-
-    <section class="group" aria-labelledby="g-learn">
-      <h2 id="g-learn">Mutator settings</h2>
-      <div class="row"><label for="nlearners">Number of mutators</label><input id="nlearners" type="number" min="0" max="5000" step="1" value="0"></div>
-      <p class="hint">Placed at random sites (set by the seed); shown in black or white when colouring by nearest named strategy.</p>
-      <div class="row"><label for="W">Window W (generations)</label><input id="W" type="number" min="1" max="200" step="1" value="3"></div>
-      <div class="row"><label for="sigma">Step size &sigma;</label><input id="sigma" type="number" min="0.01" max="0.5" step="0.01" value="0.1"></div>
-      <div class="check"><input id="keen" type="checkbox" checked><label for="keen">Keen: test each change, keep it only if it pays</label></div>
-      <div class="check"><input id="copyable" type="checkbox" checked><label for="copyable">Imitators can copy mutators</label></div>
-      <div class="readout" id="learner-readout" aria-live="polite"></div>
-      <details class="explain">
-        <summary>How mutators change</summary>
-        <p>A mutator never imitates. Every W generations it makes a new vector by nudging each probability by a random amount (standard deviation &sigma;). A keen mutator plays the new vector for W generations and keeps it only if it earned more than the old one, otherwise it goes back. A mutator that is not keen simply switches to it. In a continued game p0 is never changed, and with 1 round per generation W counts rounds.</p>
-      </details>
-    </section>
-
     <details class="how group">
       <summary>What happens in one generation</summary>
       <ol>
@@ -304,10 +276,36 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
         <li data-game="pd">Every pair of neighbours plays the set number of rounds, picking up where it left off in a continued game. A player's score is its average payoff per round, added up over its partners.</li>
         <li data-game="mp" hidden>Every pair of neighbours plays the set number of rounds twice, once with each as the matcher. A player's score is its average payoff per round, added up over its partners.</li>
         <li>Each player compares its score with a random neighbour's and copies that neighbour's whole vector with the Fermi probability. All players update at once; scores start afresh every generation.</li>
-        <li>Mutators never copy; they change their own vector (see Mutator settings).</li>
+        <li>Mutators never copy; they change their own vector (see Mutator settings under Additional Settings).</li>
         <li>Generation 0 is a lattice of uniformly random vectors drawn from the seed.</li>
       </ol>
     </details>
+
+    <details class="group more">
+      <summary>Additional Settings</summary>
+      <section class="sub" aria-labelledby="g-dyn">
+        <h2 id="g-dyn">Imitator settings</h2>
+        <div class="row"><label for="K">Fermi temperature K</label><input id="K" type="number" min="0" step="0.01" value="0"></div>
+        <input id="K-range" type="range" min="0" max="3" step="0.01" value="0" aria-label="Fermi temperature K">
+        <p class="hint">Copy probability is 1 / (1 + e<sup>&minus;&Delta;/K</sup>), where &Delta; is the neighbour's total payoff minus your own. K = 0 means copy only if strictly better.</p>
+      </section>
+
+      <section class="sub" aria-labelledby="g-learn">
+        <h2 id="g-learn">Mutator settings</h2>
+        <div class="row"><label for="nlearners">Number of mutators</label><input id="nlearners" type="number" min="0" max="5000" step="1" value="0"></div>
+        <p class="hint">Placed at random sites (set by the seed); shown in black or white when colouring by nearest named strategy.</p>
+        <div class="row"><label for="W">Window W (generations)</label><input id="W" type="number" min="1" max="200" step="1" value="3"></div>
+        <div class="row"><label for="sigma">Step size &sigma;</label><input id="sigma" type="number" min="0.01" max="0.5" step="0.01" value="0.1"></div>
+        <div class="check"><input id="keen" type="checkbox" checked><label for="keen">Keen: test each change, keep it only if it pays</label></div>
+        <div class="check"><input id="copyable" type="checkbox" checked><label for="copyable">Imitators can copy mutators</label></div>
+        <div class="readout" id="learner-readout" aria-live="polite"></div>
+        <details class="explain">
+          <summary>How mutators change</summary>
+          <p>A mutator never imitates. Every W generations it makes a new vector by nudging each probability by a random amount (standard deviation &sigma;). A keen mutator plays the new vector for W generations and keeps it only if it earned more than the old one, otherwise it goes back. A mutator that is not keen simply switches to it. In a continued game p0 is never changed, and with 1 round per generation W counts rounds.</p>
+        </details>
+      </section>
+    </details>
+
   </aside>
 
   <main class="stage">
@@ -355,12 +353,12 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
             <li>ALLC (1, 1, 1, 1, 1): always cooperates</li>
             <li>ALLD (0, 0, 0, 0, 0): always defects</li>
             <li>TFT (1, 1, 0, 1, 0): opens with C, then copies the partner's last move</li>
-            <li>grim trigger (1, 1, 0, 0, 0): opens with C, defects forever once anyone defects</li>
+            <li>grim (1, 1, 0, 0, 0): opens with C, defects forever once anyone defects</li>
             <li>WSLS (1, 1, 0, 0, 1): repeats its move after a good outcome (CC, DC), switches after a bad one (CD, DD)</li>
             <li>banter (0.5, 0.5, 0, 1, 0.5): copies the partner after unequal moves, but leaves mutual cooperation or mutual defection half the time, so two banter players end up taking turns being exploited</li>
           </ul>
           <p>The distance between a player's vector p and a named vector q is the usual straight-line distance, &radic;((p0&minus;q0)&sup2; + &hellip; + (pDD&minus;qDD)&sup2;). It is 0 for an exact match and at most &radic;5 &asymp; 2.24.</p>
-          <p>A player is counted as the closest named strategy if that distance is under 0.5, and as mixed otherwise. For example, (0.9, 1, 0.1, 0.2, 0) is 0.24 from grim trigger and 0.81 from TFT, so it counts as grim.</p>
+          <p>A player is counted as the closest named strategy if that distance is under 0.5, and as mixed otherwise. For example, (0.9, 1, 0.1, 0.2, 0) is 0.24 from grim and 0.81 from TFT, so it counts as grim.</p>
           </div>
           <div data-history="carry" hidden>
           <p>In a continued game, p0 only opened the very first round, so a strategy is compared on its four responses (pCC, pCD, pDC, pDD): a point in a four-dimensional box. Each named strategy is a corner of that box:</p>
@@ -368,19 +366,18 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
             <li>ALLC (1, 1, 1, 1): always cooperates</li>
             <li>ALLD (0, 0, 0, 0): always defects</li>
             <li>TFT (1, 0, 1, 0): copies the partner's last move</li>
-            <li>grim trigger (1, 0, 0, 0): cooperates only after mutual cooperation, so once anyone defects it defects for good</li>
+            <li>grim (1, 0, 0, 0): cooperates only after mutual cooperation, so once anyone defects it defects for good</li>
             <li>WSLS (1, 0, 0, 1): repeats its move after a good outcome (CC, DC), switches after a bad one (CD, DD)</li>
             <li>banter (0.5, 0, 1, 0.5): copies the partner after unequal moves, but leaves mutual cooperation or mutual defection half the time, so two banter players end up taking turns being exploited (CD, DC, CD, ...)</li>
           </ul>
           <p>The distance between a player's responses p and a named strategy's q is the usual straight-line distance, &radic;((pCC&minus;qCC)&sup2; + &hellip; + (pDD&minus;qDD)&sup2;). It is 0 for an exact match and at most 2.</p>
-          <p>A player is counted as the closest named strategy if that distance is under 0.5, and as mixed otherwise. For example, responses (1, 0.1, 0.2, 0) are 0.22 from grim trigger and 0.81 from TFT, so they count as grim. A player that answers exactly like TFT counts as TFT whatever its p0.</p>
+          <p>A player is counted as the closest named strategy if that distance is under 0.5, and as mixed otherwise. For example, responses (1, 0.1, 0.2, 0) are 0.22 from grim and 0.81 from TFT, so they count as grim. A player that answers exactly like TFT counts as TFT whatever its p0.</p>
           </div>
         </details>
       </section>
       <section class="panel" aria-labelledby="h-vec">
         <div class="panel-head"><h3 id="h-vec">The strategy vector</h3>
-          <span class="vec-count" title="Players whose five probabilities are exactly identical hold the same vector">unique vectors <b id="st-distinct">-</b> of <span id="st-players">-</span> players</span></div>
-        <p class="chart-sub" data-game="pd">Population mean over time (left) and distribution now (right). In a continued game, p0 is greyed out: it opened the first round only.</p>
+          <span class="vec-count" title="Players whose five probabilities are exactly identical hold the same vector"><b id="st-distinct">-</b> unique strategies of <span id="st-players">-</span> players</span></div>
         <p class="chart-sub" data-game="mp" hidden>Probability of Heads: population mean over time (left) and distribution now (right). The midline 0.5 is the unexploitable value.</p>
         <canvas class="chart tall" id="ch-vec"></canvas>
       </section>
@@ -782,7 +779,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     const [r, dist] = nearest(S.X, i);
     const lrn = LR.on && LR.isLearner && LR.isLearner[i] ? LR.list.find((l) => l.site === i) : null, isL = !!lrn;
     const name = (isL ? (!LR.keen ? "A mutator (not keen). " : lrn.phase === "trial" ? "A keen mutator, testing a new vector. " : "A keen mutator, playing its kept vector. ") : "") +
-      (r < 0 ? "Mixed (no named strategy within 0.5)" : `Nearest ${REFS[r].name} (distance ${dist.toFixed(2)})`);
+      (r < 0 ? "Mixed (no named strategy within 0.5)" : `Nearest ${REFS[r].name.replace("grim trigger", "grim")} (distance ${dist.toFixed(2)})`);
     const sw = isL && $("colorby").value === "class" ? palette.learner : palette.hex.cls[c];
     showTip(hv.cx, hv.cy,
       `<div class="t-head"><span class="sw" style="background:${sw}"></span>${isL ? "Mutator" : "Player"} (${y}, ${x})</div><div style="font-family:var(--font-ui);margin-bottom:4px">${name}</div>` +
@@ -947,7 +944,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
   });
   window.addEventListener("resize", render);
 
-  // ------------------------------------------------------------------ run files: load, replay, export
+  // ------------------------------------------------------------------ replay (links in run files open the page at a generation)
   const runStatus = (html) => { $("run-status").innerHTML = html; };
   function ensureOption(id, value, label) {
     const sel = $(id), v = String(value);
@@ -982,100 +979,6 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     }
     setControls(S.params); drawChips(); drawLegend(); drawMixLegend(); render();
   }
-  // Compare the replayed generation with a run file's final record, value by value.
-  function compareFinal(final) {
-    const now = sim.measure(), diffs = [];
-    for (const [k, v] of Object.entries(final)) {
-      if (["survivors", "fixationGen", "gen"].includes(k) || now[k] === undefined) continue;
-      const same = Array.isArray(v) ? v.length === now[k].length && v.every((x, i) => x === now[k][i]) : v === now[k];
-      if (!same) diffs.push(k);
-    }
-    return diffs;
-  }
-  function loadRun(run) {
-    if (!run || run.schema !== "lattice-game-sim/run@1" || !run.params) throw new Error("not a Lattice Game Sim run file");
-    runStatus(`Replaying to generation ${run.generations}…`);
-    setTimeout(() => {
-      try {
-        replay(run.params, run.generations, run.edits || []);
-        const diffs = compareFinal(run.final);
-        const version = run.modelVersion !== LatticeModel.MODEL_VERSION
-          ? ` The file was made with model version ${run.modelVersion}; this page runs version ${LatticeModel.MODEL_VERSION}.` : "";
-        runStatus(diffs.length
-          ? `<span><b>Replayed to generation ${run.generations}. It differs from the file</b> in: ${diffs.join(", ")}.${version}</span>`
-          : `<span><b>Replayed to generation ${run.generations}: matches the run file exactly.</b>${version}</span>`);
-      } catch (e) { runStatus(`<span>Could not replay this file: ${e.message}</span>`); }
-    }, 30);
-  }
-  $("btn-load").addEventListener("click", () => $("load-file").click());
-  $("load-file").addEventListener("change", (ev) => {
-    const f = ev.target.files && ev.target.files[0];
-    if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try { loadRun(JSON.parse(reader.result)); }
-      catch (e) { runStatus(`<span>Could not read ${f.name}: ${e.message}</span>`); }
-      $("load-file").value = "";
-    };
-    reader.readAsText(f);
-  });
-
-  function exportRun() {
-    const complete = runLog.length === S.gen + 1;
-    const run = LatticeModel.buildRun({
-      params: runStart, generations: S.gen, logEvery: 1, records: runLog, survivors: sim.survivors(500),
-      classes: NAMED.map((n) => n.name).concat(["mixed"]), components: COMP.slice(),
-      meta: {
-        name: `page__${runStart.game}_seed=${runStart.seed}_gen=${S.gen}`, experiment: null,
-        model: { file: "simulator/model.js", version: LatticeModel.MODEL_VERSION, sha256: null, commit: null },
-        runner: { page: navigator.userAgent }, created: new Date().toISOString(),
-        reproducible: runEdits.length === 0 && complete, edits: runEdits,
-        note: runEdits.length
-          ? "Parameters were changed during the run (see edits). Load run file in the page replays them; the command-line runner does not."
-          : complete ? "Exported from the page. The command-line runner reproduces it from params and generations."
-          : `The page logged only the first ${LOG_LIMIT} generations.`,
-      },
-    });
-    return run;
-  }
-  $("btn-export").addEventListener("click", () => {
-    const panel = $("export-panel");
-    if (!panel.hidden) { panel.hidden = true; return; }
-    const run = exportRun();
-    $("export-text").value = JSON.stringify(run);
-    panel.hidden = false;
-    runStatus(run.reproducible
-      ? `<span>Run at generation ${S.gen}, reproducible from its parameters.</span>`
-      : `<span><b>Not reproducible by the runner:</b> ${runEdits.length} parameter edit${runEdits.length === 1 ? "" : "s"} during the run (listed in the file).</span>`);
-  });
-  $("btn-copy").addEventListener("click", () => {
-    const ta = $("export-text");
-    const fallback = () => { ta.focus(); ta.select(); runStatus("<span>Text selected: copy it with Ctrl+C or Cmd+C.</span>"); };
-    try { navigator.clipboard.writeText(ta.value).then(() => runStatus("<span>Copied the run file.</span>"), fallback); }
-    catch (_) { fallback(); }
-  });
-  // On the published page, saving goes through the viewer's downloads capability (they confirm the
-  // save). Opened as a local file there is no such capability, and a plain download link works.
-  let downloadsApi = null;
-  if (window.claude && typeof window.claude.use === "function") {
-    window.claude.use("downloads").then((d) => { downloadsApi = d; }, () => {});
-  }
-  $("btn-download").addEventListener("click", () => {
-    const text = $("export-text").value, filename = `${JSON.parse(text).name}.json`;
-    if (downloadsApi) {
-      downloadsApi.save({ filename, data: text }).then(
-        () => runStatus(`<span>Saved ${filename}.</span>`),
-        (e) => runStatus(e && e.code === "declined" ? "<span>Not saved.</span>"
-          : `<span>Could not save here (${(e && e.code) || "unavailable"}): use Copy instead.</span>`));
-      return;
-    }
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
-    a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    runStatus("<span>If no file was saved, use Copy instead.</span>");
-  });
-
   // Open a run from the address bar (index.html?game=mp&seed=3&...&gen=500), as run files' replay links do.
   function queryRun() {
     const q = new URLSearchParams(location.search);
@@ -1097,7 +1000,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
 
   // test hook (used by the repository's check script; harmless for viewers)
   window.__lipd = { S, LR, pairExpected, pairSampled, F, restart, step, play, readAll, stats, exploitability,
-    applyGame, MAP_MATCH, MAP_MISMATCH, sim, get G() { return G; }, exportRun, loadRun, replay,
+    applyGame, MAP_MATCH, MAP_MISMATCH, sim, get G() { return G; }, replay,
     get runEdits() { return runEdits; }, get runLog() { return runLog; } };
 
   applyGame(); readPalette(); readAll(); drawChips(); restart(); drawLegend(); drawMixLegend(); render();
