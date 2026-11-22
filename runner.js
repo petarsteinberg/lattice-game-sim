@@ -102,6 +102,8 @@
     const logEvery = Math.max(1, Math.round(exp.logEvery ?? 1));
     const logDenseUntil = Math.max(0, Math.round(exp.logDenseUntil ?? 0));
     const stop = exp.stop ?? "strong";
+    if (exp.refs !== undefined && typeof exp.refs !== "boolean") throw new Error('"refs" must be true or false');
+    const refs = exp.refs === true;
     if (!["strong", "none"].includes(stop)) throw new Error('"stop" must be "strong" or "none"');
     const sweep = Object.entries(exp.sweep || {});
     for (const [k, vals] of sweep) if (!Array.isArray(vals) || !vals.length) throw new Error(`sweep "${k}" needs a non-empty list`);
@@ -115,9 +117,9 @@
         params.seed = seed;
         params = M.createSim(params).S.params; // validated, complete, in a fixed key order
         const hash = sha256(JSON.stringify(Object.assign({ params, generations, logEvery, modelVersion: M.MODEL_VERSION },
-          stop === "strong" ? {} : { stop }, logDenseUntil ? { logDenseUntil } : {}))).slice(0, 8); // defaults keep earlier run names
+          stop === "strong" ? {} : { stop }, logDenseUntil ? { logDenseUntil } : {}, refs ? { refs } : {}))).slice(0, 8); // defaults keep earlier run names
         const label = combo.map(([k, v]) => `${k}=${fmtValue(v)}`).concat([`seed=${seed}`]).join("_");
-        tasks.push({ name: `${label}__${hash}`, sweep: Object.fromEntries(combo), params, generations, logEvery, logDenseUntil, stop, experiment: exp.name });
+        tasks.push({ name: `${label}__${hash}`, sweep: Object.fromEntries(combo), params, generations, logEvery, logDenseUntil, stop, refs, experiment: exp.name });
       }
     }
     return tasks;
@@ -138,25 +140,28 @@
     const o = opts || {};
     const t0 = Date.now();
     const sim = M.createSim(task.params);
+    sim.S.lazyRefs = true;     // reference lines only for logged generations (same values, much faster)
+    sim.S.noRefs = !task.refs; // and only when the experiment asks for them
     sim.restart();
+    sim.S.lazyRecord = true;   // from here on, classes and summaries only for logged generations (same values)
     const records = [sim.measure()];
     // strong convergence can end a run only when it is final: no learners, exact payoffs
     // (and "reset" history: in a continuing game one vector can still drift towards its long-run play)
     const canStop = task.stop !== "none" && sim.S.params.mode === "expected" && sim.LR.list.length === 0;
     const carry = sim.S.params.history === "carry";
-    sim.S.lazyRefs = true; // reference lines only for logged generations (same values, much faster)
     sim.S.noReplay = true; // no generation is replayed here, so the model need not keep its start state
     let stopped = null;
     let tick = Date.now();
     for (let g = 1; g <= task.generations; g++) {
       sim.step();
-      // cheap test first: one vector means one class holds every player
-      if (canStop && g < task.generations && sim.S.last.cls.some((x) => x === 1) && sim.distinctCount() === 1) {
+      // one vector left (the count is cheap without learners, which is when a run can stop)
+      if (canStop && g < task.generations && sim.distinctCount() === 1) {
         const r = sim.measure(), last = Object.assign({}, r, { gen: task.generations });
         stopped = { reason: "strong convergence", gen: g };
         if (carry && sim.S.game === "pd") { // the games settle onto the vector's long-run play, exactly
+          const mm = sim.meanVsMean(r.mean); // = the mean-vs-mean values: every player holds this vector
           sim.pairStationary(sim.S.X, 0, 0);
-          Object.assign(last, { coop: r.mmCoop, pay: r.mmPay, cc: sim.F[0] });
+          Object.assign(last, { coop: mm.mmCoop, pay: mm.mmPay, cc: sim.F[0] });
           stopped.settled = "long-run (stationary)";
         }
         records.push(r, last);

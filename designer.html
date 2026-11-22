@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <title>Experiment Designer</title>
-<meta name="lattice-commit" content="af3bd342fbdc523ae63b85d6e72b9a4dfe5f9aa6">
+<meta name="lattice-commit" content="2a623c3207bb9ad76769d4789bb9e8a9559ecadd">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -241,6 +241,8 @@ tbody tr { cursor: pointer; }
         <div class="row"><label for="f-dense">Log every generation up to</label><input type="number" id="f-dense" value="1000" min="0" step="1"></div>
         <label class="check"><input type="checkbox" id="f-stop" checked> Stop at strong convergence</label>
         <p class="hint">One vector left, no learners, expected payoffs: nothing can change after that, and the run file records the settled state.</p>
+        <label class="check"><input type="checkbox" id="f-refs"> Record reference lines</label>
+        <p class="hint">The well-mixed and mean-vs-mean cooperation and payoff, in every logged generation (PD). Off by default: they take time and the plots do not use them.</p>
       </section>
     </fieldset>
 
@@ -431,6 +433,7 @@ function readForm() {
   const dense = num("f-dense");
   if (dense) exp.logDenseUntil = dense;
   if (!$("f-stop").checked) exp.stop = "none";
+  if ($("f-refs").checked) exp.refs = true;
   if (!exp.generations || exp.generations < 1) throw new Error("generations must be at least 1");
   return exp;
 }
@@ -452,6 +455,7 @@ function fillForm(exp) {
   $("f-seeds").value = seedsText(exp.seeds ?? 1);
   $("f-gens").value = exp.generations ?? 1000; $("f-logEvery").value = exp.logEvery ?? 1; $("f-dense").value = exp.logDenseUntil ?? 0;
   $("f-stop").checked = (exp.stop ?? "strong") === "strong";
+  $("f-refs").checked = exp.refs === true;
   gameChanged();
 }
 
@@ -500,7 +504,7 @@ function applyJson(text) {
   try {
     const exp = JSON.parse(text);
     if (typeof exp !== "object" || !exp || Array.isArray(exp)) throw new Error("the file must hold one JSON object");
-    const unknown = Object.keys(exp).filter((k) => !["name", "description", "base", "sweep", "seeds", "generations", "logEvery", "logDenseUntil", "stop", "expandedRuns", "model"].includes(k));
+    const unknown = Object.keys(exp).filter((k) => !["name", "description", "base", "sweep", "seeds", "generations", "logEvery", "logDenseUntil", "stop", "refs", "expandedRuns", "model"].includes(k));
     fillForm(exp);
     formChanged();
     msg.className = "msg ok";

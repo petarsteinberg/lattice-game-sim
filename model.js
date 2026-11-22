@@ -401,6 +401,40 @@
       const carry = edgeState(again), E = carry ? S.edge : null, SE = carry ? S.selfEdge : null, w = sampled ? 1 : 4;
       pay.fill(0); coop.fill(0);
       let cc = 0, pairs = 0;
+      if (carry && !sampled && m === 1 && S.edgeReady) {
+        // The continued game with one round per generation, exact outcomes: pairExpected's
+        // arithmetic for this case written out in one loop (same operations in the same order, so
+        // the same numbers), without a call and array lookups per pair. Self-play still uses it.
+        for (let i = 0; i < N; i++) {
+          const a = i * 5, xa0 = X[a + 1], xa1 = X[a + 2], xa2 = X[a + 3], xa3 = X[a + 4];
+          for (let h = 0; h < halfK; h++) {
+            const j = half[i * halfK + h], b = j * 5, e = (i * halfK + h) * 4;
+            const yb0 = X[b + 1], yb1 = X[b + 3], yb2 = X[b + 2], yb3 = X[b + 4];
+            const d0 = E[e], d1 = E[e + 1], d2 = E[e + 2], d3 = E[e + 3];
+            const w0 = d0 * xa0, w1 = d1 * xa1, w2 = d2 * xa2, w3 = d3 * xa3;
+            const u0 = d0 - w0, u1 = d1 - w1, u2 = d2 - w2, u3 = d3 - w3;
+            const v0 = w0 * yb0 + w1 * yb1 + w2 * yb2 + w3 * yb3;
+            const v2 = u0 * yb0 + u1 * yb1 + u2 * yb2 + u3 * yb3;
+            const v1 = w0 + w1 + w2 + w3 - v0, v3 = u0 + u1 + u2 + u3 - v2;
+            E[e] = v0; E[e + 1] = v1; E[e + 2] = v2; E[e + 3] = v3;
+            const f0 = (0 + v0) / 1, f1 = (0 + v1) / 1, f2 = (0 + v2) / 1, f3 = (0 + v3) / 1; // as pairExpected's F
+            pay[i] += f0 * R + f1 * Sv + f2 * T + f3 * P;
+            pay[j] += f0 * R + f1 * T + f2 * Sv + f3 * P;
+            coop[i] += f0 + f1;
+            coop[j] += f0 + f2;
+            cc += f0; pairs += 1;
+          }
+          if (S.self) {
+            pairExpected(X, a, a, m, MAP_PD, MAP_PD, SE, i * w);
+            pay[i] += F[0] * R + F[1] * Sv + F[2] * T + F[3] * P;
+            coop[i] += F[0] + F[1];
+          }
+        }
+        S.edgeReady = true;
+        S.ccShare = pairs ? cc / pairs : 0;
+        if (!S.lazyRecord) classify();
+        return;
+      }
       for (let i = 0; i < N; i++) {
         const a = i * 5;
         for (let h = 0; h < halfK; h++) {
@@ -420,7 +454,7 @@
       }
       if (carry) S.edgeReady = true;
       S.ccShare = pairs ? cc / pairs : 0;
-      classify();
+      if (!S.lazyRecord) classify();
     }
 
     // Matching pennies: every pair of neighbours plays twice, once with each player as the matcher.
@@ -448,7 +482,7 @@
         }
       }
       if (carry) S.edgeReady = true;
-      classify();
+      if (!S.lazyRecord) classify();
     }
 
     function imitate() {
@@ -567,12 +601,17 @@
     // play. Exploitability (matching pennies) uses a REF_ROUNDS-round game there.
     const WM_PAIRS = 5000, RX = new Float64Array(10), REF_ROUNDS = 100;
     function refRounds() { return S.history === "carry" ? REF_ROUNDS : S.m; }
+    // The population's mean vector against itself (PD), as the mean-vs-mean reference line.
+    function meanVsMean(mean) {
+      const { R, T, P, m } = S, Sv = S.Sp, carry = S.history === "carry";
+      RX.set(mean, 0); RX.set(mean, 5);
+      if (carry) pairStationary(RX, 0, 5); else pairExpected(RX, 0, 5, m);
+      return { mmPay: F[0] * R + F[1] * Sv + F[2] * T + F[3] * P, mmCoop: F[0] + F[1] };
+    }
     function references(mean) {
       const { R, T, P, N, X, m } = S, Sv = S.Sp, carry = S.history === "carry";
       const pair = (Xs, a, b) => (carry ? pairStationary(Xs, a, b) : pairExpected(Xs, a, b, m));
-      RX.set(mean, 0); RX.set(mean, 5);
-      pair(RX, 0, 5);
-      const mmPay = F[0] * R + F[1] * Sv + F[2] * T + F[3] * P, mmCoop = F[0] + F[1];
+      const { mmPay, mmCoop } = meanVsMean(mean);
       const rng = mulberry32((Math.imul(S.seed + 1, 7919) ^ Math.imul(S.gen + 1, 104729)) >>> 0);
       let wp = 0, wc = 0;
       for (let t = 0; t < WM_PAIRS; t++) {
@@ -611,7 +650,7 @@
         h.gen = keep(h.gen); SERIES.forEach((k) => { h[k] = keep(h[k]); });
         h.mean = h.mean.map(keep); h.cls = h.cls.map(keep); h.lVec = h.lVec.map(keep);
       }
-      S.last = s;
+      S.last = s; S.recordedGen = S.gen;
     }
 
     function step() {
@@ -621,7 +660,8 @@
       learnerApply();   // the vector the learner plays this generation (kept or trial)
       play();
       learnerObserve(); // add this generation's payoff to its window; decide at the window's end
-      record(false);
+      // S.lazyRecord (batch runner): classes and the population summary only when measured
+      if (!S.lazyRecord) record(false);
       S.lastMs = performance.now() - t0;
     }
 
@@ -709,8 +749,10 @@
     }
     // The record a run file logs for the current generation.
     function measure() {
+      if (S.lazyRecord && S.recordedGen !== S.gen) { classify(); record(false); }
       const s = S.last;
-      if (G.id === "pd" && s.wmCoop === undefined) Object.assign(s, references(s.mean));
+      // S.noRefs (batch runner, unless an experiment asks for them): no reference lines
+      if (G.id === "pd" && s.wmCoop === undefined && !S.noRefs) Object.assign(s, references(s.mean));
       const r = { gen: S.gen, coop: s.coop, pay: s.pay, mean: s.mean.slice(), cls: s.cls.slice(), distinct: distinctCount() };
       if (G.id === "pd") Object.assign(r, { cc: s.cc, wmCoop: s.wmCoop, wmPay: s.wmPay, mmCoop: s.mmCoop, mmPay: s.mmPay });
       else Object.assign(r, { spread: s.spread, expl: s.expl });
@@ -725,7 +767,7 @@
       S, LR, F, GAMES, MAP_MATCH, MAP_MISMATCH,
       get G() { return G; }, get COMP() { return COMP; }, get NAMED() { return NAMED; },
       get REFS() { return REFS; }, get MIXED() { return MIXED; },
-      configure, restart, step, play, record, stats, measure, distinctCount, survivors,
+      configure, restart, step, play, record, stats, measure, distinctCount, survivors, meanVsMean,
       partners, nearest, playDims, classify, exploitability, pairExpected, pairSampled, pairStationary,
       learnerInit, learnerApply, learnerObserve,
     };
