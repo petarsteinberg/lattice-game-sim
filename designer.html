@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <title>Experiment Designer</title>
-<meta name="lattice-commit" content="2a623c3207bb9ad76769d4789bb9e8a9559ecadd">
+<meta name="lattice-commit" content="6ee21053a4e4da9f1b707a6376f70713e329ed23">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -159,7 +159,7 @@ tbody tr { cursor: pointer; }
       <h1>Experiment designer</h1>
       <p>Set up an experiment, run every setting and seed in this browser with the same model as the
         command-line runner, watch the strategy mix build up, and download the run files.
-        <a href="index.html">Open simulator</a></p>
+        <a href="index.html">Visualizer</a></p>
     </div>
     <div class="model-id" id="model-id">model <b>…</b></div>
     <button type="button" class="theme-btn" id="btn-theme" title="Switch to dark theme" aria-label="Switch to dark theme">
@@ -213,16 +213,6 @@ tbody tr { cursor: pointer; }
         <div class="row"><label for="f-rounds">Rounds per generation</label><input type="number" id="f-rounds" value="1" min="1" step="1"></div>
         <div class="row"><label for="f-mode">Payoffs</label>
           <select id="f-mode"><option value="expected" selected>expected (exact)</option><option value="sampled">sampled moves</option></select></div>
-        <div class="row"><label for="f-K">Fermi temperature K</label><input type="number" id="f-K" value="0" min="0" step="any"></div>
-      </section>
-
-      <section class="group">
-        <h2>Learners</h2>
-        <div class="row"><label for="f-lcount">Number of learners</label><input type="number" id="f-lcount" value="0" min="0" step="1"></div>
-        <div class="row"><label for="f-lW">Trial length W</label><input type="number" id="f-lW" value="3" min="1" step="1"></div>
-        <div class="row"><label for="f-lsigma">Step size &sigma;</label><input type="number" id="f-lsigma" value="0.1" min="0" step="any"></div>
-        <label class="check"><input type="checkbox" id="f-lcopy" checked> Neighbours can copy learners</label>
-        <label class="check"><input type="checkbox" id="f-lkeen" checked> Keep a change only if it earned more</label>
       </section>
 
       <section class="group">
@@ -356,8 +346,8 @@ let modelError = null;
 
 // ------------------------------------------------------------------ form <-> experiment
 const RADII = { sqrt2: Math.SQRT2, "√2": Math.SQRT2, sqrt5: Math.sqrt(5), "√5": Math.sqrt(5), sqrt8: Math.sqrt(8), "√8": Math.sqrt(8) };
-const SWEEPABLE = ["K", "L", "radius", "rounds", "history", "mode", "T", "R", "P", "S", "stake", "selfInteraction", "game",
-  "learner.count", "learner.W", "learner.sigma", "learner.copyable", "learner.keen"];
+// The page runs imitators only, copying a better-scoring neighbour (K = 0), with no learners.
+const SWEEPABLE = ["L", "radius", "rounds", "history", "mode", "T", "R", "P", "S", "stake", "selfInteraction", "game"];
 const num = (id) => { const v = parseFloat($(id).value); return Number.isFinite(v) ? v : null; };
 
 function parseSeeds(text) {
@@ -414,12 +404,11 @@ function readForm() {
   const base = {
     game: $("f-game").value, T: num("f-T"), R: num("f-R"), P: num("f-P"), S: num("f-S"), stake: num("f-stake"),
     L: num("f-L"), radius: Number($("f-radius").value), selfInteraction: $("f-self").checked, mode: $("f-mode").value,
-    rounds: num("f-rounds"), history: $("f-history").value, K: num("f-K"),
-    learner: { count: num("f-lcount"), W: num("f-lW"), sigma: num("f-lsigma"), copyable: $("f-lcopy").checked, keen: $("f-lkeen").checked },
+    rounds: num("f-rounds"), history: $("f-history").value, K: 0,
+    learner: { count: 0 },
   };
   if (base.game !== "pd") { delete base.T; delete base.R; delete base.P; delete base.S; delete base.selfInteraction; } else delete base.stake;
   for (const [k, v] of Object.entries(base)) if (v === null) throw new Error(`${k} needs a number`);
-  for (const [k, v] of Object.entries(base.learner)) if (v === null) throw new Error(`learner ${k} needs a number`);
   const sweep = {};
   for (const row of $("sweep-rows").children) {
     const key = row.querySelector("select").value;
@@ -440,7 +429,6 @@ function readForm() {
 
 function fillForm(exp) {
   const b = Object.assign({}, M.DEFAULTS, exp.base || {});
-  const l = Object.assign({}, M.DEFAULTS.learner, (exp.base && exp.base.learner) || {});
   $("f-name").value = exp.name || "";
   $("f-desc").value = exp.description || "";
   $("f-game").value = b.game; $("f-T").value = b.T; $("f-R").value = b.R; $("f-P").value = b.P; $("f-S").value = b.S; $("f-stake").value = b.stake;
@@ -448,8 +436,7 @@ function fillForm(exp) {
   const rv = String(b.radius);
   if (![...$("f-radius").options].some((o) => o.value === rv)) $("f-radius").add(new Option(`radius ${Number(b.radius).toFixed(3)}`, rv));
   $("f-radius").value = rv;
-  $("f-history").value = b.history; $("f-rounds").value = b.rounds; $("f-mode").value = b.mode; $("f-K").value = b.K;
-  $("f-lcount").value = l.count; $("f-lW").value = l.W; $("f-lsigma").value = l.sigma; $("f-lcopy").checked = !!l.copyable; $("f-lkeen").checked = l.keen !== false;
+  $("f-history").value = b.history; $("f-rounds").value = b.rounds; $("f-mode").value = b.mode;
   $("sweep-rows").innerHTML = "";
   for (const [k, vals] of Object.entries(exp.sweep || {})) addSweepRow(k, vals.map(valueText).join(", "));
   $("f-seeds").value = seedsText(exp.seeds ?? 1);
@@ -487,10 +474,8 @@ function updateCount() {
 // Whether this browser's run files will match the command line's bit for bit (see runner.js).
 function mathNote() {
   const el = $("math-msg");
-  const uses = currentTasks && currentTasks.some((t) => t.params.K > 0 || t.params.learner.count > 0);
-  if (MATH_SAME) { el.className = "msg ok"; el.textContent = "This browser computes exp, log and cos exactly as the command-line runner does, so the run files will match it bit for bit."; }
-  else if (uses) { el.className = "msg err"; el.textContent = "This experiment uses K > 0 or learners, and this browser's exp, log or cos differ in the last digit from the command-line runner's. The run files will be valid, but they can differ from a command-line run of the same experiment after a few hundred generations. Experiments with K = 0 and no learners are not affected."; }
-  else { el.className = "msg ok"; el.textContent = "K = 0 and no learners: the run files will match the command-line runner bit for bit."; }
+  el.className = "msg ok";
+  el.textContent = "K = 0 and no learners: the run files will match the command-line runner bit for bit.";
 }
 function formChanged() {
   updateCount();
@@ -504,6 +489,10 @@ function applyJson(text) {
   try {
     const exp = JSON.parse(text);
     if (typeof exp !== "object" || !exp || Array.isArray(exp)) throw new Error("the file must hold one JSON object");
+    const base = exp.base || {}, sweep = exp.sweep || {};
+    const k = base.K ?? M.DEFAULTS.K, nl = base.learner ? (base.learner.count ?? (base.learner.on ? 1 : 0)) : 0;
+    const swept = Object.keys(sweep).filter((s) => s === "K" || s.startsWith("learner."));
+    if (k !== 0 || nl > 0 || swept.length) throw new Error(`this page runs only K = 0 without learners, and the file ${k !== 0 ? `sets K = ${k}` : nl > 0 ? `has ${nl} learner${nl === 1 ? "" : "s"}` : `sweeps ${swept.join(", ")}`}. Run it with the command-line runner instead`);
     const unknown = Object.keys(exp).filter((k) => !["name", "description", "base", "sweep", "seeds", "generations", "logEvery", "logDenseUntil", "stop", "refs", "expandedRuns", "model"].includes(k));
     fillForm(exp);
     formChanged();
@@ -605,8 +594,8 @@ function addToSetting(st, s, tail) {
 // ------------------------------------------------------------------ running
 let run = null;
 const cores = Math.max(1, navigator.hardwareConcurrency || 4);
-for (let j = 1; j <= cores; j++) $("f-jobs").add(new Option(String(j), String(j)));
-$("f-jobs").value = String(Math.max(1, cores - 1));
+for (let j = 1; j <= Math.max(cores, 8); j++) $("f-jobs").add(new Option(String(j), String(j)));
+$("f-jobs").value = "8";
 
 function start() {
   if (!currentTasks || modelError) return;

@@ -16,11 +16,14 @@ to the next (by default, with copying after every round) or start afresh every g
   seed. The same seed and settings always give the same run.
 - **Charts:** the strategy mix over generations, with the share of C moves and of mutual
   cooperation (CC), and the strategy vector's components.
-- **Experiment designer** (`designer.html`, linked from the simulator): set up a sweep of
-  settings and seeds, run it in the browser on several cores, watch the mean strategy mix and a
-  per-setting summary build up, and download every run file as a zip, plus a summary CSV and the
-  chart. It also offers a Fermi temperature K and mutators. The run files are the same as the
-  command-line runner's in the development repository.
+- **Experiment designer** (`designer.html`, the simulator's "Run experiments" link; its
+  "Visualizer" link leads back): set up a sweep of settings and seeds, with the same copying rule
+  as the simulator and no mutators, run it in the browser in parallel workers (8 by default), watch
+  the mean strategy mix and a per-setting summary build up, and download every run file as a zip,
+  plus a summary CSV and the chart. The well-mixed and mean-vs-mean reference lines are recorded
+  only if you ask for them. The run files are identical to the command-line runner's in the
+  development repository; experiment files from there that use a Fermi temperature K > 0 or
+  mutators are not accepted here and run with that runner instead.
 
 The simulator is two files, `index.html` and `model.js`, with no build step: download them and open
 `index.html` to run it offline. The experiment designer also needs `designer.html`,
