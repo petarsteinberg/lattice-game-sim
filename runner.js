@@ -145,6 +145,7 @@
     const canStop = task.stop !== "none" && sim.S.params.mode === "expected" && sim.LR.list.length === 0;
     const carry = sim.S.params.history === "carry";
     sim.S.lazyRefs = true; // reference lines only for logged generations (same values, much faster)
+    sim.S.noReplay = true; // no generation is replayed here, so the model need not keep its start state
     let stopped = null;
     let tick = Date.now();
     for (let g = 1; g <= task.generations; g++) {

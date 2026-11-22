@@ -127,13 +127,7 @@ button.small { font-size: 12px; padding: 4px 8px; }
 .export textarea { width: 100%; resize: vertical; font: 11px/1.4 var(--font-data); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
 #run-status:empty { display: none; }
 details.how { font-size: 12.5px; color: var(--muted); }
-details.more { gap: 0; }
-details.more > summary { cursor: pointer; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-details.more[open] > summary { margin-bottom: 10px; }
-details.more .sub { display: flex; flex-direction: column; gap: 10px; }
-details.more .sub + .sub { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
-details.more .sub h2 { font-size: 12px; text-transform: none; letter-spacing: 0; color: var(--ink); }
-details.how summary { cursor: pointer; color: var(--ink); font-weight: 500; }
+details.how > summary { cursor: pointer; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 details.how ol { padding: 0 1.4em; margin: 8px 0 0; list-style-position: outside; display: flex; flex-direction: column; gap: 4px; }
 details.explain { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
 details.explain summary { cursor: pointer; color: var(--ink); font-weight: 500; }
@@ -164,6 +158,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
 .charts { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .chart { width: 100%; height: 150px; display: block; }
 .chart.tall { height: 300px; }
+.chart.mix { height: 210px; }
 .chart-sub { font-size: 12px; color: var(--muted); margin: -6px 0 6px; }
 .tip {
   position: fixed; z-index: 20; pointer-events: none; background: var(--surface); color: var(--ink);
@@ -186,12 +181,13 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
   <header class="top">
     <div>
       <h1>Lattice Game Sim</h1>
-      <p>Every player starts with a random memory-one strategy, plays an iterated game with each of its neighbours, and copies better-scoring neighbours with the Fermi rule. <a href="designer.html" style="color:var(--focus)">Run experiments</a></p>
+      <p>Every player starts with a random memory-one strategy, plays an iterated game with each of its neighbours, and copies a random neighbour only if it scores better. <a href="designer.html" style="color:var(--focus)">Run experiments</a></p>
     </div>
     <div class="top-right">
     <div class="status" aria-live="polite">
       <span>generation <b id="st-gen">0</b></span>
       <span><span id="st-a-label">C moves</span> <b id="st-coop">-</b></span>
+      <span data-game="pd">CC moves <b id="st-cc">-</b></span>
       <span><span id="st-b-label">payoff</span> <b id="st-pay">-</b></span>
       <span><b id="st-ms">-</b> ms / step</span>
       <span class="conv" id="st-conv" data-state="">convergence <i class="conv-dot" aria-hidden="true"></i><b id="st-conv-v">-</b></span>
@@ -231,7 +227,6 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
           <option value="2.8284271247461903">&radic;8 (24 neighbours)</option>
           <option value="3">3 (28 neighbours)</option>
         </select></div>
-      <p class="hint">Neighbours are the sites within this distance, wrapping around the edges.</p>
     </section>
 
     <section class="group" aria-labelledby="g-game">
@@ -275,35 +270,9 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
         <li data-game="mp" hidden>Each player holds five probabilities of playing Heads: p0 for the first round, then pHW, pHL, pTW, pTL after playing Heads or Tails and winning or losing.</li>
         <li data-game="pd">Every pair of neighbours plays the set number of rounds, picking up where it left off in a continued game. A player's score is its average payoff per round, added up over its partners.</li>
         <li data-game="mp" hidden>Every pair of neighbours plays the set number of rounds twice, once with each as the matcher. A player's score is its average payoff per round, added up over its partners.</li>
-        <li>Each player compares its score with a random neighbour's and copies that neighbour's whole vector with the Fermi probability. All players update at once; scores start afresh every generation.</li>
-        <li>Mutators never copy; they change their own vector (see Mutator settings under Additional Settings).</li>
-        <li>Generation 0 is a lattice of uniformly random vectors drawn from the seed.</li>
+        <li>Each player picks one neighbour at random and copies its whole strategy if that neighbour scored more; otherwise it keeps its own. All players switch at the same time.</li>
+        <li>Generation 0 is a lattice of uniformly random strategies drawn from the seed.</li>
       </ol>
-    </details>
-
-    <details class="group more">
-      <summary>Additional Settings</summary>
-      <section class="sub" aria-labelledby="g-dyn">
-        <h2 id="g-dyn">Imitator settings</h2>
-        <div class="row"><label for="K">Fermi temperature K</label><input id="K" type="number" min="0" step="0.01" value="0"></div>
-        <input id="K-range" type="range" min="0" max="3" step="0.01" value="0" aria-label="Fermi temperature K">
-        <p class="hint">Copy probability is 1 / (1 + e<sup>&minus;&Delta;/K</sup>), where &Delta; is the neighbour's total payoff minus your own. K = 0 means copy only if strictly better.</p>
-      </section>
-
-      <section class="sub" aria-labelledby="g-learn">
-        <h2 id="g-learn">Mutator settings</h2>
-        <div class="row"><label for="nlearners">Number of mutators</label><input id="nlearners" type="number" min="0" max="5000" step="1" value="0"></div>
-        <p class="hint">Placed at random sites (set by the seed); shown in black or white when colouring by nearest named strategy.</p>
-        <div class="row"><label for="W">Window W (generations)</label><input id="W" type="number" min="1" max="200" step="1" value="3"></div>
-        <div class="row"><label for="sigma">Step size &sigma;</label><input id="sigma" type="number" min="0.01" max="0.5" step="0.01" value="0.1"></div>
-        <div class="check"><input id="keen" type="checkbox" checked><label for="keen">Keen: test each change, keep only if it pays</label></div>
-        <div class="check"><input id="copyable" type="checkbox" checked><label for="copyable">Imitators can copy mutators</label></div>
-        <div class="readout" id="learner-readout" aria-live="polite"></div>
-        <details class="explain">
-          <summary>How mutators change</summary>
-          <p>A mutator never imitates. Every W generations it makes a new vector by nudging each probability by a random amount (standard deviation &sigma;). A keen mutator plays the new vector for W generations and keeps it only if it earned more than the old one, otherwise it goes back. A mutator that is not keen simply switches to it. In a continued game p0 is never changed, and with 1 round per generation W counts rounds.</p>
-        </details>
-      </section>
     </details>
 
   </aside>
@@ -331,11 +300,10 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     <div class="charts">
       <section class="panel" aria-labelledby="h-mix">
         <div class="panel-head"><h3 id="h-mix">Strategy mix</h3></div>
-        <p class="chart-sub">Share of players closest to each named strategy</p>
-        <canvas class="chart" id="ch-mix"></canvas>
+        <canvas class="chart mix" id="ch-mix"></canvas>
         <div class="legend" id="legend-mix"></div>
         <details class="explain" data-game="mp" hidden>
-          <summary>What <em>closest to a named strategy</em> means</summary>
+          <summary>How strategies are categorized</summary>
           <p>A strategy here is compared on its four follow-up probabilities (pHW, pHL, pTW, pTL); the opening move only affects round one. The named strategies are:</p>
           <ul>
             <li>always Heads (1, 1, 1, 1) and always Tails (0, 0, 0, 0)</li>
@@ -346,7 +314,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
           <p>The distance between a player's four numbers and a named strategy's is the straight-line distance, &radic;((pHW&minus;q1)&sup2; + &hellip; + (pTL&minus;q4)&sup2;), at most 2. A player counts as the closest named strategy if that distance is under 0.5, and as mixed otherwise.</p>
         </details>
         <details class="explain" data-game="pd">
-          <summary>What <em>closest to a named strategy</em> means</summary>
+          <summary>How strategies are categorized</summary>
           <div data-history="reset">
           <p>A strategy is five numbers (p0, pCC, pCD, pDC, pDD), so it is a point in a five-dimensional box. Each named strategy is a corner of that box:</p>
           <ul>
@@ -381,35 +349,6 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
         <p class="chart-sub" data-game="mp" hidden>Probability of Heads: population mean over time (left) and distribution now (right). The midline 0.5 is the unexploitable value.</p>
         <canvas class="chart tall" id="ch-vec"></canvas>
       </section>
-      <section class="panel" aria-labelledby="h-coop">
-        <div class="panel-head"><h3 id="h-coop"><span data-game="pd">Cooperation</span><span data-game="mp" hidden>Payoff spread</span></h3></div>
-        <p class="chart-sub" data-game="pd">Share of all moves that are C</p>
-        <p class="chart-sub" data-game="mp" hidden>Standard deviation of players' payoffs per partner per round; 0 when nobody exploits anybody. The scale follows the data.</p>
-        <canvas class="chart" id="ch-coop"></canvas>
-        <div class="legend" id="legend-coop"></div>
-        <details class="explain" data-game="mp" hidden>
-          <summary>What payoff spread and exploitability show</summary>
-          <p>Matching pennies is zero-sum, so the mean payoff is always exactly 0. What changes is who wins.</p>
-          <p><b>Payoff spread</b> is the standard deviation of players' payoffs. It is 0 when every pairing is even, and grows when some players beat their neighbours at others' expense.</p>
-          <p><b>Exploitability</b> is what the best possible opponent would earn per round against a player using the population's mean vector, in both roles and over the set number of rounds. It is computed exactly, round by round, and is 0 only for 50/50 random play. The mutators' payoff, when there are any, is a live estimate of how exploitable their actual neighbours are.</p>
-          <p>Without mutation, imitation eventually leaves one vector, which earns 0 against itself, so the end state always looks calm in spread. Exploitability, or the mutators, show whether that survivor could be beaten.</p>
-        </details>
-        <details class="explain" data-game="pd">
-          <summary>What the reference lines show</summary>
-          <p><b>Lattice</b> is what players actually do with their neighbours.</p>
-          <p><b>Well-mixed</b> takes the same players but pairs each with randomly chosen players from anywhere on the lattice, ignoring who sits next to whom. It is estimated each generation from 5,000 random pairs.</p>
-          <p><b>Mean vs mean</b> is a single player using the population's average vector (the mean of each of the five probabilities) playing against itself, computed exactly.</p>
-          <p>The gaps separate two effects. Lattice above well-mixed is <em>clustering</em>: neighbours are more alike than random pairs, so cooperators meet cooperators more often. A gap between well-mixed and mean vs mean is <em>diversity</em>: payoff is not linear in the vector, so the average strategy is a poor stand-in for the actual mix, and it may describe nobody (half TFT and half ALLD averages to 0.5, 0.5, 0, 0.5, 0). Without mutation, imitation eventually leaves one vector, and then all three lines meet.</p>
-          <p>Both reference lines use the expected game outcome, also when the lattice uses sampled moves. In a continued game, games never end, so both lines use each pair's long-run play: the share of each outcome once the game has gone on long enough to forget how it started (computed exactly). Once a single vector holds the lattice, the lattice's own cooperation settles onto both lines.</p>
-        </details>
-      </section>
-      <section class="panel" aria-labelledby="h-pay">
-        <div class="panel-head"><h3 id="h-pay"><span data-game="pd">Mean payoff</span><span data-game="mp" hidden>Exploitability</span></h3></div>
-        <p class="chart-sub" data-game="pd">Per partner per round; reference lines as in the cooperation chart</p>
-        <p class="chart-sub" data-game="mp" hidden>Best possible opponent's payoff per round against the population's mean vector; 0 only at 50/50 random</p>
-        <canvas class="chart" id="ch-pay"></canvas>
-        <div class="legend" id="legend-pay"></div>
-      </section>
     </div>
   </main>
 </div>
@@ -432,18 +371,15 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
   // All of the model lives in model.js, shared with the Node runner (run.js). The page only
   // reads its state and draws it.
   const sim = LatticeModel.createSim();
-  const S = sim.S, LR = sim.LR;
+  const S = sim.S;
   const { F, MAP_MATCH, MAP_MISMATCH, play, record, stats, partners, nearest, exploitability,
-    pairExpected, pairSampled, learnerInit, learnerApply } = sim;
+    pairExpected, pairSampled } = sim;
+  S.lazyRefs = true; // the page shows no reference lines, so the model need not compute them
 
-  // Every generation is logged with the same measure() the runner uses, so the page can export a
-  // run in the runner's format. Parameter edits during a run are recorded with their generation.
-  const LOG_LIMIT = 50000;
-  let runLog = [], runEdits = [], runStart = null;
+  let runStart = null;
   const clone = (o) => JSON.parse(JSON.stringify(o));
-  function restart() { sim.restart(); runLog = [sim.measure()]; runEdits = []; runStart = clone(S.params); }
-  function step() { sim.step(); if (runLog.length < LOG_LIMIT) runLog.push(sim.measure()); }
-  function relogLast() { if (runLog.length && runLog[runLog.length - 1].gen === S.gen) runLog[runLog.length - 1] = sim.measure(); }
+  function restart() { sim.restart(); runStart = clone(S.params); }
+  function step() { sim.step(); }
   let G, COMP, NAMED, REFS, MIXED;
   function syncGame() { G = sim.G; COMP = sim.COMP; NAMED = sim.NAMED; REFS = sim.REFS; MIXED = sim.MIXED; }
   syncGame();
@@ -491,18 +427,9 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     const ctx = lat.getContext("2d");
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(off, 0, 0, W, W);
-    if (LR.on && mode === "class") { // learners: solid cells in the text colour, on this colouring only
-      const cell = W / L;
-      ctx.fillStyle = palette.learner;
-      for (const l of LR.list) ctx.fillRect((l.site % L) * cell, Math.floor(l.site / L) * cell, cell, cell);
-    }
   }
 
-  function drawLegend() {
-    drawLatticeLegend();
-    if (LR.on && $("colorby").value === "class") $("legend").insertAdjacentHTML("beforeend",
-      `<span><span class="sw" style="background:${palette.learner}"></span>mutator</span>`);
-  }
+  function drawLegend() { drawLatticeLegend(); }
   function drawLatticeLegend() {
     const mode = $("colorby").value, el = $("legend");
     el.title = "";
@@ -644,51 +571,28 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     }
   }
 
+  // Strategy mix, plus (PD) the share of moves that are C and of pair rounds that are mutual cooperation
+  const CC_DASH = [5, 3];
   function drawCharts() {
     const h = S.hist;
-    lineChart("ch-mix", NAMED.map((nm, i) => ({ data: h.cls[i], color: palette.hex.cls[i], label: nm.name }))
-      .concat([{ data: h.cls[MIXED], color: palette.hex.cls[MIXED], label: "mixed" }]), 0, 1);
-    if (G.id === "mp") {
-      // the spread is usually small, so this chart scales to its own data
-      const top = Math.max(0.01 * S.stake, ...h.spread.filter(Number.isFinite)) * 1.15;
-      lineChart("ch-coop", [{ data: h.spread, color: palette.ink, label: "payoff spread", digits: 3 }], 0, top);
-      lineChart("ch-pay", [{ data: h.expl, color: palette.ink, label: "exploitability" }], 0, S.stake);
-      vectorChart();
-      return;
-    }
-    // reference lines first, so the lattice line is drawn on top
-    const refs = (wm, mm) => [
-      { data: wm, color: palette.muted, label: "well-mixed", dash: REF_DASH.wm, width: 1.6 },
-      { data: mm, color: palette.muted, label: "mean vs mean", dash: REF_DASH.mm, width: 1.6 },
-    ];
-    lineChart("ch-coop", refs(h.wmCoop, h.mmCoop).concat([{ data: h.coop, color: palette.ink, label: "lattice" }]), 0, 1);
-    const [lo, hi] = payRange();
-    lineChart("ch-pay", refs(h.wmPay, h.mmPay).concat([{ data: h.pay, color: palette.ink, label: "lattice" }]), lo, hi);
+    const lines = NAMED.map((nm, i) => ({ data: h.cls[i], color: palette.hex.cls[i], label: nm.name }))
+      .concat([{ data: h.cls[MIXED], color: palette.hex.cls[MIXED], label: "mixed" }]);
+    if (G.id === "pd") lines.push({ data: h.coop, color: palette.ink, label: "C moves", width: 1.5 },
+      { data: h.cc, color: palette.ink, label: "CC moves", width: 1.5, dash: CC_DASH });
+    lineChart("ch-mix", lines, 0, 1);
     vectorChart();
   }
 
-  const REF_DASH = { wm: [6, 4], mm: [1.5, 3.5] };
   function lineSample(color, dash, width) {
     const da = dash ? ` stroke-dasharray="${dash.join(" ")}"` : "";
     return `<svg width="24" height="8" aria-hidden="true" style="vertical-align:1px;margin-right:5px">` +
       `<line x1="0" y1="4" x2="24" y2="4" stroke="${color}" stroke-width="${width}"${da}></line></svg>`;
   }
-  function drawLineLegends() {
-    if (G.id === "mp") {
-      $("legend-coop").innerHTML = `<span>${lineSample(palette.ink, null, 2)}payoff spread</span>`;
-      $("legend-pay").innerHTML = `<span>${lineSample(palette.ink, null, 2)}exploitability of the mean vector</span>`;
-      return;
-    }
-    const refsHtml = `<span>${lineSample(palette.muted, REF_DASH.wm, 1.6)}well-mixed</span>` +
-      `<span>${lineSample(palette.muted, REF_DASH.mm, 1.6)}mean vs mean</span>`;
-    $("legend-coop").innerHTML = `<span>${lineSample(palette.ink, null, 2)}lattice</span>` + refsHtml;
-    $("legend-pay").innerHTML = `<span>${lineSample(palette.ink, null, 2)}lattice</span>` + refsHtml;
-  }
-
   function drawMixLegend() {
-    drawLineLegends();
     $("legend-mix").innerHTML = NAMED.map((n, i) => `<span><span class="sw" style="background:${palette.hex.cls[i]}"></span>${n.name}</span>`).join("") +
-      `<span><span class="sw" style="background:${palette.hex.cls[MIXED]}"></span>mixed</span>`;
+      `<span><span class="sw" style="background:${palette.hex.cls[MIXED]}"></span>mixed</span>` +
+      (G.id === "pd" ? `<span title="Share of all moves that are C">${lineSample(palette.ink, null, 1.5)}C moves</span>` +
+        `<span title="Share of neighbour-pair rounds in which both cooperate">${lineSample(palette.ink, CC_DASH, 1.5)}CC moves</span>` : "");
   }
 
   function drawStatus() {
@@ -698,6 +602,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
       $("st-pay").textContent = S.last ? S.last.expl.toFixed(3) : "-";
     } else {
       $("st-coop").textContent = S.last ? (100 * S.last.coop).toFixed(1) + "%" : "-";
+      $("st-cc").textContent = S.last ? (100 * S.last.cc).toFixed(1) + "%" : "-";
       $("st-pay").textContent = S.last ? S.last.pay.toFixed(2) : "-";
     }
     $("st-ms").textContent = S.lastMs ? S.lastMs.toFixed(1) : "-";
@@ -705,52 +610,19 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     $("st-distinct").textContent = distinct.toLocaleString("en-US");
     drawConvergence(distinct);
     $("st-players").textContent = S.N.toLocaleString("en-US");
-    drawLearnerReadout();
   }
 
-  // Convergence of the lattice: strong = one vector; weak = several vectors, all closest to the same
-  // named strategy; none = more than one named strategy, or players that are not near any ("mixed").
+  // Convergence: yes once every player holds the same strategy (imitation can then change nothing).
   function drawConvergence(distinct) {
     const el = $("st-conv");
     if (!S.last) { el.dataset.state = ""; $("st-conv-v").textContent = "-"; el.title = ""; return; }
-    const present = [];
-    S.last.cls.forEach((x, c) => { if (x > 0) present.push(c); });
-    const names = present.map((c) => (c === sim.MIXED ? "mixed" : sim.NAMED[c].name));
-    let state, title;
-    if (distinct === 1) {
-      state = "strong";
-      title = "Strong: every player holds the same vector." + (LR.list.length
-        ? " Mutators keep trying new vectors, so this can end."
-        : S.params.history === "carry" ? " The vectors can no longer change, but the continuing games still settle towards their long-run pattern."
-        : (S.params.mode === "expected" ? " Nothing can change from here: every global measure is now fixed."
-          : " The lattice can no longer change; with sampled moves the measures still fluctuate."));
-    } else if (present.length === 1 && present[0] !== sim.MIXED) {
-      state = "weak";
-      title = `Weak: ${distinct.toLocaleString("en-US")} different vectors, all closest to ${names[0]}.`;
-    } else {
-      state = "none";
-      title = present.length === 1
-        ? `None: no player is near a named strategy (${distinct.toLocaleString("en-US")} different vectors, all mixed).`
-        : `None: ${present.length} kinds present (${names.join(", ")}).`;
-    }
-    el.dataset.state = state;
-    $("st-conv-v").textContent = state;
-    el.title = title + "\n\nStrong: one vector. Weak: several vectors, all closest to the same named strategy. None: anything else.";
-  }
-
-  function drawLearnerReadout() {
-    const el = $("learner-readout");
-    const n = LR.list.length;
-    if (!n) { el.innerHTML = "<span>No mutators: every player imitates.</span>"; return; }
-    const counts = new Array(MIXED + 1).fill(0);
-    for (const l of LR.list) counts[S.cls[l.site]]++;
-    const names = NAMED.map((x) => x.name).concat(["mixed"]);
-    const parts = counts.map((c, i) => [c, i]).filter(([c]) => c);
-    el.innerHTML = `<span>What the ${n} mutator${n > 1 ? "s are" : " is"} playing now</span>` +
-      `<div class="mixbar" role="img" aria-label="${parts.map(([c, i]) => `${names[i]} ${c}`).join(", ")}">` +
-      parts.map(([c, i]) => `<span style="width:${(100 * c) / n}%;background:${palette.hex.cls[i]}" title="${names[i]}: ${c}"></span>`).join("") +
-      `</div><div class="legend" style="margin-top:2px">` +
-      parts.map(([c, i]) => `<span><span class="sw" style="background:${palette.hex.cls[i]}"></span>${names[i]} ${c}</span>`).join("") + `</div>`;
+    const yes = distinct === 1;
+    el.dataset.state = yes ? "strong" : "";
+    $("st-conv-v").textContent = yes ? "yes" : "no";
+    el.title = yes
+      ? "Yes: every player holds the same strategy, so copying can no longer change anything." +
+        (S.params.history === "carry" ? " The continuing games still settle towards their long-run pattern." : "")
+      : `No: ${distinct.toLocaleString("en-US")} different strategies remain.`;
   }
 
   function render() {
@@ -777,12 +649,10 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     if (x < 0 || y < 0 || x >= S.L || y >= S.L) return hideTip();
     const i = y * S.L + x, kk = partners(), c = S.cls[i];
     const [r, dist] = nearest(S.X, i);
-    const lrn = LR.on && LR.isLearner && LR.isLearner[i] ? LR.list.find((l) => l.site === i) : null, isL = !!lrn;
-    const name = (isL ? (!LR.keen ? "A mutator (not keen). " : lrn.phase === "trial" ? "A keen mutator, testing a new vector. " : "A keen mutator, playing its kept vector. ") : "") +
-      (r < 0 ? "Mixed (no named strategy within 0.5)" : `Nearest ${REFS[r].name.replace("grim trigger", "grim")} (distance ${dist.toFixed(2)})`);
-    const sw = isL && $("colorby").value === "class" ? palette.learner : palette.hex.cls[c];
+    const name = (r < 0 ? "Mixed (no named strategy within 0.5)" : `Nearest ${REFS[r].name.replace("grim trigger", "grim")} (distance ${dist.toFixed(2)})`);
+    const sw = palette.hex.cls[c];
     showTip(hv.cx, hv.cy,
-      `<div class="t-head"><span class="sw" style="background:${sw}"></span>${isL ? "Mutator" : "Player"} (${y}, ${x})</div><div style="font-family:var(--font-ui);margin-bottom:4px">${name}</div>` +
+      `<div class="t-head"><span class="sw" style="background:${sw}"></span>Player (${y}, ${x})</div><div style="font-family:var(--font-ui);margin-bottom:4px">${name}</div>` +
       COMP.map((n, q) => `<div>${n.padEnd(4, " ")} ${fmt(S.X[i * 5 + q])}</div>`).join("") +
       `<div style="margin-top:4px">payoff ${fmt(S.pay[i] / kk)} per partner per round</div>` +
       `<div>${G.rateWord} ${(100 * S.coop[i] / kk).toFixed(0)}%</div>`);
@@ -797,7 +667,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     el.addEventListener("pointerleave", () => { hover[id] = null; hideTip(); render(); });
   }
   attachHover(lat, "lattice");
-  ["ch-mix", "ch-coop", "ch-pay", "ch-vec"].forEach((id) => attachHover($(id), id));
+  ["ch-mix", "ch-vec"].forEach((id) => attachHover($(id), id));
 
   // ------------------------------------------------------------------ controls
   let running = false, acc = 0, lastT = 0;
@@ -836,21 +706,19 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
   function controlParams() {
     return {
       game: $("game").value, T: num("T", 5), R: num("R", 3), P: num("P", 1), S: num("S", 0), stake: num("stake", 1),
-      L: Number($("L").value), radius: Number($("radius").value), K: num("K", 0.2), rounds: num("rounds", 3),
+      L: Number($("L").value), radius: Number($("radius").value), K: 0, rounds: num("rounds", 3),
       history: $("history").value, selfInteraction: $("selfint").checked, mode: $("mode").value, seed: num("seed", 1),
-      learner: { count: num("nlearners", 0), W: num("W", 3), sigma: num("sigma", 0.1), copyable: $("copyable").checked, keen: $("keen").checked },
+      learner: { count: 0 },
     };
   }
   // Apply the controls. Before the first step a change simply restarts the run with the new
-  // parameters; later changes are recorded as edits. opts says what the page recomputes after the
-  // change, so a replay can repeat exactly the same operations.
-  function readAll(opts = {}) {
+  // parameters; later changes take effect from the current generation.
+  function readAll() {
     const before = S.params ? JSON.stringify(S.params) : null;
     sim.configure(controlParams());
     syncGame(); syncHistoryText();
     if (!runStart || before === null || JSON.stringify(S.params) === before) return;
-    if (S.gen === 0) { restart(); return; }
-    runEdits.push({ gen: S.gen, params: clone(S.params), replayGames: !!opts.replayGames, learnersPlaced: !!opts.learnersPlaced });
+    if (S.gen === 0) restart();
   }
   // texts that differ between a repeated game (new each generation) and a continued game
   function syncHistoryText() {
@@ -872,8 +740,8 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
   // Live parameters: recompute the current generation's games, keep the strategies.
   function liveChange() {
     const gen0 = S.gen === 0; // at generation 0 readAll restarts the run with the new parameters
-    readAll({ replayGames: true }); drawChips();
-    if (!gen0) { play(true); record(true); relogLast(); }
+    readAll(); drawChips();
+    if (!gen0) { play(true); record(true); }
     drawLegend(); render();
   }
   ["T", "R", "S", "P", "rounds", "stake"].forEach((id) => $(id).addEventListener("input", liveChange));
@@ -897,8 +765,6 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     applyGame(); readAll(); readPalette(); restart(); drawChips(); drawLegend(); drawMixLegend(); render();
   });
   ["selfint", "mode", "history"].forEach((id) => $(id).addEventListener("change", liveChange));
-  $("K").addEventListener("input", () => { $("K-range").value = $("K").value; readAll(); });
-  $("K-range").addEventListener("input", () => { $("K").value = $("K-range").value; readAll(); });
   ["L", "radius"].forEach((id) => $(id).addEventListener("change", () => { readAll(); restart(); render(); }));
   $("seed").addEventListener("change", () => { readAll(); restart(); render(); });
   document.querySelectorAll("[data-preset]").forEach((b) => b.addEventListener("click", () => {
@@ -907,18 +773,6 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     liveChange();
   }));
   $("colorby").addEventListener("change", () => { drawLegend(); render(); });
-  // Changing the number of learners during a run places a new set at random sites, each starting
-  // from the vector already at its site; former learners carry on as imitators.
-  $("nlearners").addEventListener("change", () => {
-    const before = LR.count, gen0 = S.gen === 0;
-    readAll({ replayGames: true, learnersPlaced: true });
-    if (!gen0 && LR.count !== before) { learnerInit(); learnerApply(); play(true); record(true); relogLast(); }
-    drawLegend(); render();
-  });
-  ["W", "sigma"].forEach((id) => $(id).addEventListener("input", () => { readAll(); drawLearnerReadout(); }));
-  $("copyable").addEventListener("change", () => { readAll(); });
-  $("keen").addEventListener("change", () => { readAll(); drawLearnerReadout(); render(); });
-
   const reTheme = () => { readPalette(); drawLegend(); drawMixLegend(); render(); };
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", reTheme);
   new MutationObserver(reTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
@@ -954,29 +808,17 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
   function setControls(p) {
     const set = (id, v) => { const el = $(id); if (el.type === "checkbox") el.checked = !!v; else el.value = String(v); };
     set("game", p.game);
-    ["T", "R", "P", "S", "stake", "K", "rounds", "mode", "seed"].forEach((k) => set(k, p[k]));
+    ["T", "R", "P", "S", "stake", "rounds", "mode", "seed"].forEach((k) => set(k, p[k]));
     set("history", p.history || "reset"); // run files before model version 3 have no history
-    $("K-range").value = p.K;
     set("selfint", p.selfInteraction);
     ensureOption("L", p.L, `${p.L} x ${p.L}`);
     ensureOption("radius", p.radius, `${Number(p.radius).toFixed(3)}`);
-    set("nlearners", p.learner.count ?? (p.learner.on ? 1 : 0)); set("W", p.learner.W); set("sigma", p.learner.sigma); set("copyable", p.learner.copyable); set("keen", p.learner.keen !== false);
   }
-  // Run from generation 0 to gen with these parameters, repeating any recorded edits.
-  function replay(params, gen, edits = []) {
+  // Run from generation 0 to gen with these parameters.
+  function replay(params, gen) {
     setRunning(false);
     setControls(params); applyGame(); readPalette(); readAll(); restart();
-    const todo = edits.slice().sort((a, b) => a.gen - b.gen);
-    for (let g = 1; g <= gen; g++) {
-      step();
-      while (todo.length && todo[0].gen === g) {
-        const e = todo.shift();
-        sim.configure(e.params); syncGame();
-        if (e.learnersPlaced || e.learnerStarted) { learnerInit(); learnerApply(); }
-        if (e.replayGames) { play(true); record(true); relogLast(); }
-        runEdits.push(clone(e));
-      }
-    }
+    for (let g = 1; g <= gen; g++) step();
     setControls(S.params); drawChips(); drawLegend(); drawMixLegend(); render();
   }
   // Open a run from the address bar (index.html?game=mp&seed=3&...&gen=500), as run files' replay links do.
@@ -987,25 +829,22 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
     if (q.has("game")) p.game = q.get("game");
     if (q.has("mode")) p.mode = q.get("mode");
     if (q.has("history")) p.history = q.get("history");
-    for (const k of ["T", "R", "P", "S", "stake", "L", "radius", "K", "rounds", "seed"]) if (q.has(k)) p[k] = n(k);
+    for (const k of ["T", "R", "P", "S", "stake", "L", "radius", "rounds", "seed"]) if (q.has(k)) p[k] = n(k);
     if (q.has("self")) p.selfInteraction = b("self");
-    if (q.has("learners")) p.learner.count = n("learners");
-    else if (q.has("learner")) p.learner.count = b("learner") ? 1 : 0; // older links
-    if (q.has("W")) p.learner.W = n("W");
-    if (q.has("sigma")) p.learner.sigma = n("sigma");
-    if (q.has("copyable")) p.learner.copyable = b("copyable");
-    if (q.has("keen")) p.learner.keen = b("keen");
+    // this page runs only K = 0 without mutators; a link to anything else cannot be opened here
+    const K = q.has("K") ? n("K") : 0, learners = q.has("learners") ? n("learners") : q.has("learner") && b("learner") ? 1 : 0;
+    if (K !== 0 || learners > 0) return { unsupported: `This link is for a run with ${K !== 0 ? `K = ${K}` : ""}${K !== 0 && learners > 0 ? " and " : ""}${learners > 0 ? `${learners} mutator${learners === 1 ? "" : "s"}` : ""}; this page runs only K = 0 without mutators.` };
     return { params: p, gen: Math.max(0, Math.round(n("gen") || 0)) };
   }
 
   // test hook (used by the repository's check script; harmless for viewers)
-  window.__lipd = { S, LR, pairExpected, pairSampled, F, restart, step, play, readAll, stats, exploitability,
-    applyGame, MAP_MATCH, MAP_MISMATCH, sim, get G() { return G; }, replay,
-    get runEdits() { return runEdits; }, get runLog() { return runLog; } };
+  window.__lipd = { S, pairExpected, pairSampled, F, restart, step, play, readAll, stats, exploitability,
+    applyGame, MAP_MATCH, MAP_MISMATCH, sim, get G() { return G; }, replay };
 
   applyGame(); readPalette(); readAll(); drawChips(); restart(); drawLegend(); drawMixLegend(); render();
   const fromQuery = queryRun();
-  if (fromQuery) {
+  if (fromQuery && fromQuery.unsupported) runStatus(`<span>${fromQuery.unsupported}</span>`);
+  else if (fromQuery) {
     replay(fromQuery.params, fromQuery.gen);
     runStatus(`<span>Opened from the address: generation ${S.gen}.</span>`);
   }

@@ -111,7 +111,7 @@
         dims: [0, 1, 2, 3, 4],
         rateWord: "C moves",
         rateOption: "Cooperation this generation",
-        series: ["coop", "pay", "wmCoop", "wmPay", "mmCoop", "mmPay", "lCoop", "lPay"],
+        series: ["coop", "pay", "cc", "wmCoop", "wmPay", "mmCoop", "mmPay", "lCoop", "lPay"],
       },
       mp: {
         id: "mp",
@@ -173,12 +173,16 @@
       }
       S.X = new Float64Array(N * 5); S.Y = new Float64Array(N * 5);
       S.pay = new Float64Array(N); S.coop = new Float64Array(N); S.cls = new Uint8Array(N);
+      // lineage labels for distinctCount (see there): a label per player, copied with its vector
+      S.lab = new Int32Array(N); S.labY = new Int32Array(N); S.labMark = new Uint32Array(N); S.labStamp = 0;
     }
 
     function restart() {
       S.rng = mulberry32(S.seed * 2654435761 + 12345);
       buildLattice();
       for (let i = 0; i < S.N * 5; i++) S.X[i] = S.rng();
+      for (let i = 0; i < S.N; i++) S.lab[i] = i;
+      S.labOk = true;
       S.gen = 0;
       S.edge = null; S.selfEdge = null; S.edgeReady = false; S.edgeStart = null;
       S.hist = { gen: [], mean: [[], [], [], [], []], lVec: [[], [], [], [], []],
@@ -232,6 +236,7 @@
       }
     }
     function learnerApply() {
+      if (LR.list.length) S.labOk = false; // learners make new vectors: distinctCount hashes instead
       for (const l of LR.list) S.X.set(l.phase === "trial" ? l.trial : l.kept, l.site * 5);
     }
     // A nudged copy of v: each probability moves by a normal step of size sigma, kept in [0, 1]. In a
@@ -290,6 +295,11 @@
         v1 = w0 + w1 + w2 + w3 - v0; v3 = u0 + u1 + u2 + u3 - v2;
       } else {
         v0 = x0 * y0; v1 = x0 * (1 - y0); v2 = (1 - x0) * y0; v3 = (1 - x0) * (1 - y0);
+      }
+      if (m === 1) { // one round: the loop below would add each v once and divide by 1
+        if (st) { st[so] = v0; st[so + 1] = v1; st[so + 2] = v2; st[so + 3] = v3; }
+        F[0] = (s0 + v0) / 1; F[1] = (s1 + v1) / 1; F[2] = (s2 + v2) / 1; F[3] = (s3 + v3) / 1;
+        return;
       }
       for (let t = 0; t < m; t++) {
         s0 += v0; s1 += v1; s2 += v2; s3 += v3;
@@ -377,7 +387,7 @@
       }
       if (again && S.edgeStart && S.edgeStart.length === S.edge.length) {
         S.edge.set(S.edgeStart); S.selfEdge.set(S.selfEdgeStart); S.edgeReady = S.edgeReadyStart;
-      } else {
+      } else if (!S.noReplay) { // S.noReplay (batch runner): no generation is ever replayed, so skip the copy
         if (!S.edgeStart || S.edgeStart.length !== S.edge.length) { S.edgeStart = new Type(n); S.selfEdgeStart = new Type(S.N * w); }
         S.edgeStart.set(S.edge); S.selfEdgeStart.set(S.selfEdge); S.edgeReadyStart = S.edgeReady;
       }
@@ -442,7 +452,7 @@
     }
 
     function imitate() {
-      const { N, X, Y, pay, nb, k, K, rng } = S;
+      const { N, X, Y, pay, nb, k, K, rng, lab, labY } = S;
       const isL = LR.isLearner, any = LR.list.length > 0, block = any && !LR.copyable;
       for (let i = 0; i < N; i++) {
         const j = nb[i * k + Math.floor(rng() * k)];
@@ -452,8 +462,10 @@
         if (any && (isL[i] || (block && isL[j]))) src = i; // learners never imitate
         const a = i * 5, b = src * 5;
         Y[a] = X[b]; Y[a + 1] = X[b + 1]; Y[a + 2] = X[b + 2]; Y[a + 3] = X[b + 3]; Y[a + 4] = X[b + 4];
+        labY[i] = lab[src];
       }
       S.X = Y; S.Y = X;
+      S.lab = labY; S.labY = lab;
     }
 
     // The entries that matter for play: in a continuing game p0 opens only the very first round,
@@ -473,9 +485,33 @@
       }
       return [best, Math.sqrt(bd)];
     }
+    // classify() does what nearest() does for every player, with the same arithmetic in the same
+    // order (so the same classes), but without allocating or looking anything up per player.
     function classify() {
-      const { N, X, cls } = S;
-      for (let i = 0; i < N; i++) { const [r] = nearest(X, i); cls[i] = r < 0 ? MIXED : REFS[r].cls; }
+      const { N, X, cls } = S, dims = playDims(), nd = dims.length, nr = REFS.length, lim = CLASS_RADIUS * CLASS_RADIUS;
+      const RV = new Float64Array(nr * 5), RC = new Uint8Array(nr);
+      for (let r = 0; r < nr; r++) { RV.set(REFS[r].v, r * 5); RC[r] = REFS[r].cls; }
+      const four = nd === 4 && dims[0] === 1 && dims[1] === 2 && dims[2] === 3 && dims[3] === 4;
+      const five = nd === 5 && dims[0] === 0 && dims[1] === 1 && dims[2] === 2 && dims[3] === 3 && dims[4] === 4;
+      for (let i = 0; i < N; i++) {
+        const a = i * 5, x0 = X[a], x1 = X[a + 1], x2 = X[a + 2], x3 = X[a + 3], x4 = X[a + 4];
+        let best = -1, bd = lim;
+        for (let r = 0; r < nr; r++) {
+          const o = r * 5;
+          let d = 0;
+          if (four) {
+            const e1 = x1 - RV[o + 1], e2 = x2 - RV[o + 2], e3 = x3 - RV[o + 3], e4 = x4 - RV[o + 4];
+            d += e1 * e1; d += e2 * e2; d += e3 * e3; d += e4 * e4;
+          } else if (five) {
+            const e0 = x0 - RV[o], e1 = x1 - RV[o + 1], e2 = x2 - RV[o + 2], e3 = x3 - RV[o + 3], e4 = x4 - RV[o + 4];
+            d += e0 * e0; d += e1 * e1; d += e2 * e2; d += e3 * e3; d += e4 * e4;
+          } else {
+            for (let k = 0; k < nd; k++) { const q = dims[k], e = X[a + q] - RV[o + q]; d += e * e; }
+          }
+          if (d < bd) { bd = d; best = r; }
+        }
+        cls[i] = best < 0 ? MIXED : RC[best];
+      }
     }
 
     function partners() { return S.k + (S.self ? 1 : 0); }
@@ -632,8 +668,20 @@
 
     // ---------------------------------------------------------------- measurements
     // Number of distinct strategy vectors (exact bit patterns, hashed to 53 bits).
+    // Without learners, vectors change only by imitation, which copies a whole vector, so players
+    // hold the same vector exactly when they share a lineage label (labels start as one per
+    // player and are copied with the vector). Counting labels is much faster than hashing.
+    // (Initial vectors are 5 independent draws each, so two that start equal do not occur.)
     const f64 = new Float64Array(1), u32 = new Uint32Array(f64.buffer);
     function distinctCount() {
+      if (S.labOk) {
+        const { N, lab, labMark } = S;
+        if (++S.labStamp === 0xffffffff) { labMark.fill(0); S.labStamp = 1; }
+        const st = S.labStamp;
+        let n = 0;
+        for (let i = 0; i < N; i++) { const l = lab[i]; if (labMark[l] !== st) { labMark[l] = st; n++; } }
+        return n;
+      }
       const seen = new Set(), X = S.X;
       for (let i = 0; i < S.N; i++) {
         let h1 = 0x811c9dc5, h2 = 0x9747b28c;
