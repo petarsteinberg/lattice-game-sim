@@ -126,7 +126,7 @@ button.small { font-size: 12px; padding: 4px 8px; }
 .controls-run.two { grid-template-columns: 1fr 1fr; }
 .export textarea { width: 100%; resize: vertical; font: 11px/1.4 var(--font-data); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
 #run-status:empty { display: none; }
-details.how { font-size: 12.5px; color: var(--muted); }
+details.how { font-size: 12.5px; color: var(--muted); gap: 0; } /* no gap below the title while closed */
 details.how > summary { cursor: pointer; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 details.how ol { padding: 0 1.4em; margin: 8px 0 0; list-style-position: outside; display: flex; flex-direction: column; gap: 4px; }
 details.explain { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
@@ -316,7 +316,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
         <details class="explain" data-game="pd">
           <summary>How strategies are categorized</summary>
           <div data-history="reset">
-          <p>A strategy is five numbers (p0, pCC, pCD, pDC, pDD), so it is a point in a five-dimensional box. Each named strategy is a corner of that box:</p>
+          <p>A strategy is five numbers (p0, pCC, pCD, pDC, pDD), so it is a point in a five-dimensional box.</p>
           <ul>
             <li>ALLC (1, 1, 1, 1, 1): always cooperates</li>
             <li>ALLD (0, 0, 0, 0, 0): always defects</li>
@@ -329,7 +329,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
           <p>A player is counted as the closest named strategy if that distance is under 0.5, and as mixed otherwise. For example, (0.9, 1, 0.1, 0.2, 0) is 0.24 from grim and 0.81 from TFT, so it counts as grim.</p>
           </div>
           <div data-history="carry" hidden>
-          <p>In a continued game, p0 only opened the very first round, so a strategy is compared on its four responses (pCC, pCD, pDC, pDD): a point in a four-dimensional box. Each named strategy is a corner of that box:</p>
+          <p>In a continued game, p0 only opened the very first round, so a strategy is compared on its four responses (pCC, pCD, pDC, pDD): a point in a four-dimensional box.</p>
           <ul>
             <li>ALLC (1, 1, 1, 1): always cooperates</li>
             <li>ALLD (0, 0, 0, 0): always defects</li>
@@ -338,8 +338,7 @@ main.stage { grid-area: stage; display: grid; gap: 16px; grid-template-columns: 
             <li>WSLS (1, 0, 0, 1): repeats its move after a good outcome (CC, DC), switches after a bad one (CD, DD)</li>
             <li>banter (0.5, 0, 1, 0.5): copies the partner after unequal moves, but leaves mutual cooperation or mutual defection half the time, so two banter players end up taking turns being exploited (CD, DC, CD, ...)</li>
           </ul>
-          <p>The distance between a player's responses p and a named strategy's q is the usual straight-line distance, &radic;((pCC&minus;qCC)&sup2; + &hellip; + (pDD&minus;qDD)&sup2;). It is 0 for an exact match and at most 2.</p>
-          <p>A player is counted as the closest named strategy if that distance is under 0.5, and as mixed otherwise. For example, responses (1, 0.1, 0.2, 0) are 0.22 from grim and 0.81 from TFT, so they count as grim. A player that answers exactly like TFT counts as TFT whatever its p0.</p>
+          <p>The distance between a player's responses p and a named strategy's q is the usual straight-line distance, &radic;((pCC&minus;qCC)&sup2; + &hellip; + (pDD&minus;qDD)&sup2;). It is 0 for an exact match and at most 2. A player is counted as the closest named strategy if that distance is under 0.5, and as mixed otherwise.</p>
           </div>
         </details>
       </section>
