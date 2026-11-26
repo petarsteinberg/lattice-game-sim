@@ -20,8 +20,7 @@ to the next (by default, with copying after every round) or start afresh every g
   "Visualizer" link leads back): set up a sweep of settings and seeds, with the same copying rule
   as the simulator and no mutators, run it in the browser in parallel workers (8 by default), watch
   the mean strategy mix and a per-setting summary build up, and download every run file as a zip,
-  plus a summary CSV and the chart. The well-mixed and mean-vs-mean reference lines are recorded
-  only if you ask for them. The run files are identical to the command-line runner's in the
+  plus a summary CSV and the chart. The run files are identical to the command-line runner's in the
   development repository; experiment files from there that use a Fermi temperature K > 0 or
   mutators are not accepted here and run with that runner instead.
 
