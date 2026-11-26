@@ -4,6 +4,8 @@ An interactive simulator of evolutionary games on a lattice, in the browser:
 
 **https://petarsteinberg.github.io/lattice-game-sim/**
 
+Download the report [here](The_Imitation_Claim.pdf).
+
 Every site of an L × L lattice (wrapping at the edges) holds a memory-one strategy, a vector of
 probabilities that starts out completely random. Each generation, every player plays an iterated
 game against each neighbour within the chosen radius, then picks one neighbour at random and copies
